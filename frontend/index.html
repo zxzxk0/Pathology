@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVS Dual Viewer - H&E + CosMx</title>
+    
+    <!-- OpenSeadragon -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+    
+    <!-- Annotorious for polygon annotations -->
+    <script src="https://cdn.jsdelivr.net/npm/@recogito/annotorious-openseadragon@2.7.14/dist/openseadragon-annotorious.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@recogito/annotorious-openseadragon@2.7.14/dist/annotorious.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+        }
+
+        header {
+            background: #16213e;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #00d4ff;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-top: 0.25rem;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #16213e;
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-right: 1px solid #0f3460;
+            flex-shrink: 0;
+        }
+
+        /* Dual Viewer Container */
+        .dual-viewer-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .viewer-panels {
+            flex: 1;
+            display: flex;
+            gap: 2px;
+            background: #0f3460;
+        }
+
+        .viewer-panel {
+            flex: 1;
+            position: relative;
+            background: #0f3460;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: #16213e;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid #00d4ff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #00d4ff;
+            text-transform: uppercase;
+        }
+
+        .panel-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .panel-controls button {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #eee;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .panel-controls button:hover {
+            background: #00d4ff;
+            color: #1a1a2e;
+        }
+
+        .panel-controls button.active {
+            background: #27ae60;
+            color: white;
+            border-color: #27ae60;
+        }
+
+        .viewer-content {
+            flex: 1;
+            position: relative;
+        }
+
+        #viewerLeft, #viewerRight {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* CosMx overlay for right panel */
+        #cosmxOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* Control group styles */
+        .control-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .control-group h3 {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            color: #00d4ff;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        select, button {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button {
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: #00d4ff;
+            color: #1a1a2e;
+            border-color: #00d4ff;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: #00d4ff;
+            color: #1a1a2e;
+            border: none;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            border: none;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: #1a1a2e;
+            border: none;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .toggle-btn.active, .toggle-btn.selected {
+            background: #27ae60;
+            color: white;
+            border-color: #27ae60;
+        }
+
+        .label-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .label-btn {
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .label-btn.selected {
+            background: #00d4ff;
+            color: #1a1a2e;
+            font-weight: 600;
+        }
+
+        /* Sync controls */
+        .sync-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .sync-controls button {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        /* Transform controls */
+        .transform-row {
+            margin-bottom: 0.75rem;
+        }
+
+        .transform-row label {
+            display: block;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 0.3rem;
+        }
+
+        .transform-row input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #0f3460;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .transform-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #00d4ff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .rotation-presets {
+            display: flex;
+            gap: 0.25rem;
+            margin-top: 0.4rem;
+        }
+
+        .preset-btn {
+            flex: 1;
+            padding: 0.3rem;
+            font-size: 0.75rem;
+            margin-top: 0;
+        }
+
+        .preset-btn.active {
+            background: #00d4ff;
+            color: #1a1a2e;
+        }
+
+        .flip-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .flip-controls button {
+            flex: 1;
+            padding: 0.4rem;
+            font-size: 0.8rem;
+            margin-top: 0;
+        }
+
+        .flip-controls button.active {
+            background: #9b59b6;
+            color: white;
+            border-color: #9b59b6;
+        }
+
+        /* Status bar */
+        .status-bar {
+            background: rgba(22, 33, 62, 0.95);
+            padding: 0.75rem 1.5rem;
+            font-size: 0.85rem;
+            color: #aaa;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #0f3460;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #27ae60;
+        }
+
+        .annotation-count {
+            background: #00d4ff;
+            color: #1a1a2e;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        /* Help section */
+        .help-section {
+            background: #0f1929;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .help-section h4 {
+            color: #f39c12;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .help-section ul {
+            list-style: none;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            color: #bbb;
+        }
+
+        .help-section li {
+            padding-left: 1.2rem;
+            position: relative;
+            margin-bottom: 0.3rem;
+        }
+
+        .help-section li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #00d4ff;
+        }
+
+        .help-toggle {
+            width: 100%;
+            background: #0f3460;
+            color: #00d4ff;
+            border: 1px solid #00d4ff;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .help-content {
+            display: none;
+        }
+
+        .help-content.show {
+            display: block;
+        }
+
+        /* Sync indicator */
+        .sync-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            color: #27ae60;
+        }
+
+        .sync-icon {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #27ae60;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Annotorious style overrides */
+        .a9s-annotation {
+            stroke-width: 2px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🔬 SVS Dual Viewer - H&E + CosMx</h1>
+        <div class="subtitle">UGA IAI Seed Project - Aim 2 MVP (Left: H&E, Right: CosMx Only)</div>
+    </header>
+
+    <div class="main-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <!-- Quick Help Toggle -->
+            <button class="help-toggle" onclick="toggleHelp()">❓ Quick Help</button>
+            
+            <div id="helpContent" class="help-content">
+                <div class="help-section">
+                    <h4>🖱️ Drawing Polygons</h4>
+                    <ul>
+                        <li>Click each corner point</li>
+                        <li>Double-click last point to finish</li>
+                        <li>Hold SPACE to pan/drag view</li>
+                        <li>Draw only on LEFT panel</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>⌨️ Keyboard Shortcuts</h4>
+                    <ul>
+                        <li>SPACE: Pan mode (hold)</li>
+                        <li>Mouse Wheel: Zoom in/out</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>🔄 Panel Sync</h4>
+                    <ul>
+                        <li>Sync ON: Left controls Right</li>
+                        <li>Sync OFF: Move Right independently</li>
+                        <li>Re-sync: Align Right to Left</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>💡 Manual Alignment</h4>
+                    <ul>
+                        <li>Turn Sync OFF</li>
+                        <li>Move right panel to align</li>
+                        <li>Adjust Rotation/Flip/Scale</li>
+                        <li>Click "Save Position"</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h4>🔧 Transform Controls</h4>
+                    <ul>
+                        <li>Rotation: Slider or presets</li>
+                        <li>Flip X/Y: Toggle buttons</li>
+                        <li>Scale: 0.5x ~ 2.0x</li>
+                        <li>Save to transform.json</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Slide Selection -->
+            <div class="control-group">
+                <h3>📂 Slide Selection</h3>
+                <select id="slideSelect">
+                    <option value="">Loading slides...</option>
+                </select>
+            </div>
+
+            <!-- Sync Controls (NEW) -->
+            <div class="control-group">
+                <h3>🔄 Panel Sync</h3>
+                <div class="sync-controls">
+                    <button id="syncToggle" class="active">Sync: ON</button>
+                    <button id="resyncBtn" class="btn-warning">Re-sync</button>
+                </div>
+            </div>
+
+            <!-- CosMx Transform Controls (NEW) -->
+            <div class="control-group">
+                <h3>🔧 CosMx Transform</h3>
+                
+                <!-- Rotation -->
+                <div class="transform-row">
+                    <label>Rotation: <span id="rotationValue">0</span>°</label>
+                    <input type="range" id="rotationSlider" min="0" max="360" value="0" step="1">
+                    <div class="rotation-presets">
+                        <button class="preset-btn" data-rotation="0">0°</button>
+                        <button class="preset-btn" data-rotation="90">90°</button>
+                        <button class="preset-btn" data-rotation="180">180°</button>
+                        <button class="preset-btn" data-rotation="270">270°</button>
+                    </div>
+                </div>
+                
+                <!-- Flip -->
+                <div class="transform-row">
+                    <label>Flip:</label>
+                    <div class="flip-controls">
+                        <button id="flipXBtn">Flip X</button>
+                        <button id="flipYBtn">Flip Y</button>
+                    </div>
+                </div>
+                
+                <!-- Scale -->
+                <div class="transform-row">
+                    <label>Scale: <span id="scaleValue">1.00</span>x</label>
+                    <input type="range" id="scaleSlider" min="0.5" max="2.0" value="1.0" step="0.01">
+                </div>
+                
+                <!-- Save Position -->
+                <button id="savePositionBtn" class="btn-primary" style="margin-top: 0.75rem;">💾 Save Position</button>
+            </div>
+
+            <!-- Drawing Tools -->
+            <div class="control-group">
+                <h3>🖊️ Drawing Tools (Left Panel)</h3>
+                <div class="toggle-group">
+                    <button class="toggle-btn selected" id="drawPolygon">Polygon</button>
+                    <button class="toggle-btn" id="drawRectangle">Rectangle</button>
+                </div>
+            </div>
+
+            <!-- Annotation Controls -->
+            <div class="control-group">
+                <h3>🏷️ Label Selection</h3>
+                <div class="label-selector">
+                    <button class="label-btn selected" data-label="tumor">Tumor</button>
+                    <button class="label-btn" data-label="stroma">Stroma</button>
+                    <button class="label-btn" data-label="lymphocyte">Lymphocyte</button>
+                    <button class="label-btn" data-label="other">Other</button>
+                </div>
+            </div>
+
+            <!-- Mode Toggle -->
+            <div class="control-group">
+                <h3>🔧 Mode</h3>
+                <button id="deleteMode">Delete Mode</button>
+            </div>
+
+            <!-- Delete Options -->
+            <div class="control-group">
+                <h3>🗑️ Delete Options</h3>
+                <button id="deleteSelected">Delete Selected</button>
+                <button id="clearAll" class="btn-danger">Clear All</button>
+            </div>
+
+            <!-- Save/Load -->
+            <div class="control-group">
+                <h3>💾 Data Management</h3>
+                <button class="btn-primary" id="saveBtn">Save Annotations</button>
+                <button id="loadBtn">Reload Annotations</button>
+                <button id="exportBtn">Export GeoJSON</button>
+                <input type="file" id="importInput" accept=".json,.geojson" style="display: none;">
+                <button id="importBtn">Import GeoJSON</button>
+            </div>
+        </aside>
+
+        <!-- Dual Viewer Panels -->
+        <div class="dual-viewer-container">
+            <div class="viewer-panels">
+                <!-- Left Panel: H&E with Annotations -->
+                <div class="viewer-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">🔬 H&E Slide (Annotation Layer)</span>
+                        <div class="panel-controls">
+                            <span class="sync-indicator">
+                                <span class="sync-icon"></span>
+                                Master
+                            </span>
+                        </div>
+                    </div>
+                    <div class="viewer-content">
+                        <div id="viewerLeft"></div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: CosMx Only -->
+                <div class="viewer-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">🧬 CosMx Cell Types</span>
+                        <div class="panel-controls">
+                            <button id="cosmxToggle" class="active">CosMx: ON</button>
+                        </div>
+                    </div>
+                    <div class="viewer-content">
+                        <div id="viewerRight"></div>
+                        <svg id="cosmxOverlay"></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Ready</span>
+                </div>
+                <div class="status-item">
+                    Annotations: <span class="annotation-count" id="annotationCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span id="syncStatus">🔄 Moving Together</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleHelp() {
+            const content = document.getElementById('helpContent');
+            content.classList.toggle('show');
+        }
+    </script>
+    <script src="viewer.js"></script>
+</body>
+</html>
