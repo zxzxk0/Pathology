@@ -1,0 +1,27 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+
+# virtual env
+venv/
+.venv/
+env/
+
+# data (절대 업로드 금지)
+data/
+tiles/
+slides/
+cosmx/
+cosmx_tiles/
+annotations/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# vscode
+.vscode/
+
+# logs
+*.log
