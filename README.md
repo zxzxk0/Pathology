@@ -4,34 +4,28 @@ A lightweight research tool for visualization and approximate alignment of
 H&E whole-slide pathology images (SVS) with CosMx spatial transcriptomics
 images.
 
-This project was developed to support pathology–spatial transcriptomics
-analysis workflows in which researchers need to visually compare morphology
-(H&E) and molecular spatial information (CosMx) within the same tissue.
+This project supports workflows where researchers need to visually compare
+morphology (H&E) and molecular spatial information (CosMx) within the same tissue.
 
 The system provides:
 - Deep zoom viewing of whole-slide H&E images
-- CosMx image overlay
+- CosMx overlay visualization
 - Automatic orientation estimation (rotation + flip + translation)
-- Manual alignment refinement
-- Annotation of tumor/stroma/other regions
-- Saving and reloading alignment transforms
+- Manual alignment refinement and transform saving
+- Region annotation (e.g., tumor/stroma)
 
 ---
 
 ## Repository Structure
 
-Pathology/
-│
-├── backend/ # Flask API (serves slides, tiles, transforms, annotations)
-├── frontend/ # Web viewer UI (OpenSeadragon based)
-├── codes/ # preprocessing and alignment pipeline
-└── data/ # (NOT INCLUDED IN REPO)
-
+**Pathology/**
+- **backend/** : Flask API (serves slides, tiles, transforms, annotations)
+- **frontend/** : Web viewer UI (OpenSeadragon based)
+- **codes/** : preprocessing and alignment pipeline
+- **data/** : **NOT INCLUDED IN REPO** (SVS/CosMx inputs + generated tiles)
 
 ⚠️ The `data/` directory is intentionally excluded from the repository due to
-file size and potential patient data.
-
-You must prepare the data locally.
+file size and potential patient data. You must prepare the data locally.
 
 ---
 
@@ -51,91 +45,74 @@ Required:
 
 Create the environment:
 
+```bash
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 
 conda create -n pathology python=3.10 openslide openslide-python
 conda activate pathology
-
+```
 
 Install Python dependencies:
 
+```bash
 pip install -r backend/requirements.txt
 pip install opencv-python
-
+```
 
 Verify OpenSlide:
 
+```bash
 python -c "import openslide; print('OpenSlide OK')"
-
+```
 
 ---
 
 ## Data Preparation
 
-Create the following folder:
+Create the following folders:
 
+```text
 Pathology/data/
-slides/ # H&E whole-slide images (.svs)
-cosmx/ # CosMx composite images (.png)
+  slides/     # H&E whole-slide images (.svs)
+  cosmx/      # CosMx composite images (.png)
+```
 
+File names must match:
 
-File names MUST match:
-
-Example:
-
+```text
 data/slides/A01.svs
 data/cosmx/A01.png
-
-
-The alignment pipeline pairs files by identical filename.
+```
 
 ---
 
 ## Preprocessing Pipeline
 
-All preprocessing scripts are inside:
-
-codes/
-
-
 ### Step 1 — Convert H&E SVS to DeepZoom tiles
 
+```bash
 cd codes
 python make_dzi.py --all --slides-dir ../data/slides --output-dir ../data/tiles
+```
 
+### Step 2 — Convert CosMx PNG to DeepZoom tiles
 
-This converts each SVS into OpenSeadragon-compatible pyramidal tiles.
-
----
-
-### Step 2 — Convert CosMx image to tiles
-
+```bash
 python make_cosmx_dzi.py --all --cosmx-dir ../data/cosmx --output-dir ../data/cosmx_tiles
-
-
-This generates deep zoom tiles for the CosMx image.
-
----
+```
 
 ### Step 3 — Automatic Alignment (CORE STEP)
 
+```bash
 python auto_orientation_v4.py --all --data-dir ../data --refine --debug
-
-
-This step automatically estimates:
-- rotation
-- flip (X/Y)
-- translation
+```
 
 Output:
 
+```text
 data/cosmx_tiles/<slide_id>/transform.json
-
-
-The viewer reads this file to overlay CosMx onto H&E.
-
-Debug images will also be produced to visually verify alignment.
+```
 
 ---
 
@@ -143,36 +120,32 @@ Debug images will also be produced to visually verify alignment.
 
 ### Start Backend API
 
-Open terminal 1:
-
+```bash
 cd backend
 python app.py
-
+```
 
 Backend runs at:
-
+```
 http://localhost:5000
+```
 
-
-Test:
-
+Health check:
+```
 http://localhost:5000/health
-
-
----
+```
 
 ### Start Frontend Viewer
 
-Open terminal 2:
-
+```bash
 cd frontend
 python -m http.server 8000
-
+```
 
 Open browser:
-
+```
 http://localhost:8000
-
+```
 
 ---
 
@@ -180,26 +153,25 @@ http://localhost:8000
 
 The alignment algorithm performs approximate global registration:
 
-1. Extracts tissue masks from H&E and CosMx
-2. Measures tissue coverage similarity
-3. Tests all 16 orientation combinations:
+1. Extract tissue masks from H&E and CosMx
+2. Compare tissue coverage ratio
+3. Test 16 orientation combinations:
    - rotations: 0°, 90°, 180°, 270°
    - flip X
    - flip Y
-4. Estimates translation using phase correlation
-5. Performs local refinement
+4. Estimate translation using phase correlation
+5. Local refinement
 
-This produces a global alignment suitable for visualization and ROI
-selection, but not cell-level registration.
-
-Manual adjustments can still be applied within the viewer.
+This produces a global alignment suitable for visualization and ROI selection,
+but not cell-level registration.
 
 ---
 
 ## Notes
 
-- This tool is designed for visualization and region selection.
-- It is not a precise histological registration method.
-- CosMx and H&E originate from different section depths; perfect alignment
-  is not expected.
-- Users may refine alignment interactively and save the transform.
+- Designed for visualization and region selection
+- Perfect alignment is not expected (different section depths)
+- Manual refinement is available in the UI
+
+---
+
