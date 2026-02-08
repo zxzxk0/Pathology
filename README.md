@@ -108,11 +108,22 @@ python make_cosmx_dzi.py --all --cosmx-dir ../data/cosmx --output-dir ../data/co
 python auto_orientation_past.py --all --data-dir ../data --refine --debug
 ```
 
+This step computes the **global alignment transform** between the H&E
+slide and the CosMx image.
+
+The algorithm estimates:
+- rotation (0°, 90°, 180°, 270°)
+- horizontal/vertical flip
+- approximate translation (position)
+- approximate scale
+
 Output:
 
 ```text
 data/cosmx_tiles/<slide_id>/transform.json
 ```
+
+The viewer reads this file to overlay CosMx onto the H&E image.
 
 ---
 
@@ -151,7 +162,7 @@ http://localhost:8000
 
 ## Alignment Method Overview
 
-The alignment algorithm performs approximate global registration:
+The alignment algorithm performs an approximate global registration:
 
 1. Extract tissue masks from H&E and CosMx
 2. Compare tissue coverage ratio
@@ -160,18 +171,52 @@ The alignment algorithm performs approximate global registration:
    - flip X
    - flip Y
 4. Estimate translation using phase correlation
-5. Local refinement
+5. Perform local refinement around the best translation
 
 This produces a global alignment suitable for visualization and ROI selection,
 but not cell-level registration.
 
 ---
 
-## Notes
+## Alignment Status and Ongoing Development
 
-- Designed for visualization and region selection
-- Perfect alignment is not expected (different section depths)
-- Manual refinement is available in the UI
+The current alignment pipeline focuses on estimating a **whole-tissue global transform**.
+It is designed for visual correspondence rather than precise histological registration.
+
+The following samples have been verified to have reliable orientation
+(rotation and flip) alignment, although fine-scale position and scale
+refinement is still ongoing:
+
+```
+3_2
+3_4
+3_6
+3_7
+3_8
+3_16
+3_18
+3_19
+```
+
+For these slides, CosMx and H&E are correctly oriented but may still
+require small manual adjustments within the viewer.
+
+Because H&E and CosMx originate from different section depths and
+preparation protocols, perfect pixel-level matching is not expected.
 
 ---
 
+## Notes
+
+- Designed for visualization and region selection
+- Not intended for cell-level registration
+- Slight spatial mismatch is biologically expected
+- Manual refinement is available in the UI and can be saved
+
+---
+
+## Citation
+
+Bang, Ji Hoon (2026)  
+SVS–CosMx Dual Viewer for Pathology–Spatial Transcriptomics Visualization  
+University of Georgia
