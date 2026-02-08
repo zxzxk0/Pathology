@@ -105,7 +105,7 @@ python make_cosmx_dzi.py --all --cosmx-dir ../data/cosmx --output-dir ../data/co
 ### Step 3 — Automatic Alignment (CORE STEP)
 
 ```bash
-python auto_orientation_v4.py --all --data-dir ../data --refine --debug
+python auto_orientation_past.py --all --data-dir ../data --refine --debug
 ```
 
 Output:
