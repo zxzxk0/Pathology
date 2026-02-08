@@ -27,6 +27,12 @@ The system provides:
 ⚠️ The `data/` directory is intentionally excluded from the repository due to
 file size and potential patient data. You must prepare the data locally.
 
+data/
+slides/ # (USER) H&E whole-slide images (.svs)
+cosmx/ # (USER) CosMx composite images (.png)
+tiles/ # (AUTO) generated from slides/ by make_dzi.py
+cosmx_tiles/ # (AUTO) generated from cosmx/ + transform.json
+annotations/ # (AUTO) saved when drawing in UI
 ---
 
 ## Requirements
