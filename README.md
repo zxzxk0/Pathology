@@ -188,14 +188,14 @@ The following samples have been verified to have reliable orientation
 refinement is still ongoing:
 
 ```
-3_2
-3_4
-3_6
-3_7
-3_8
-3_16
-3_18
-3_19
+3_2_cc5f738f-5a6e-83f1-8019-d4f484c158d6_152921
+3_4_81f5958c-a17d-1b21-319e-8246eaea2242_153255
+3_6_3f4bd19c-3831-031f-89dd-c69a43d2fdd5_153646
+3_7_edee787a-2318-5c90-bdd1-058a5b3cc54d_153828
+3_8_3792918c-5a59-9910-b304-d7d7049e36e0_154003
+3_16_e5e4e83e-46ca-ee7d-7f64-46f5ba0b0183_155845
+3_18_1ed35fb5-f264-11cd-b4de-f349af3ea4ab_160205
+3_19_bdc3dc21-6e16-faa2-65ba-b9b593835173_160447
 ```
 
 For these slides, CosMx and H&E are correctly oriented but may still
