@@ -6,7 +6,7 @@
  * v4.3: Viewport-based transform saving
  */
 
-const API_BASE = '/api';
+const API_BASE = 'http://localhost:5000/api';
 // Dual viewers
 let viewerLeft = null;
 let viewerRight = null;

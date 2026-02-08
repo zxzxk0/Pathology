@@ -1,27 +1,36 @@
+# data (Don't upload)
+data/
+data/*
+
+# generated tiles
+*/tiles/
+*/cosmx_tiles/
+*.dzi
+*_files/
+
+# debug outputs
+debug_alignment/
+*.png
+*.jpg
+
 # python
 __pycache__/
 *.pyc
 *.pyo
 
-# virtual env
-venv/
+# environment
+.env
+.envs/
 .venv/
-env/
-
-# data (절대 업로드 금지)
-data/
-tiles/
-slides/
-cosmx/
-cosmx_tiles/
-annotations/
+*.yml
 
 # OS
 .DS_Store
 Thumbs.db
 
-# vscode
+# VSCode / IDE
 .vscode/
+.idea/
 
 # logs
 *.log
