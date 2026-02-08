@@ -215,8 +215,3 @@ preparation protocols, perfect pixel-level matching is not expected.
 
 ---
 
-## Citation
-
-Bang, Ji Hoon (2026)  
-SVS–CosMx Dual Viewer for Pathology–Spatial Transcriptomics Visualization  
-University of Georgia
