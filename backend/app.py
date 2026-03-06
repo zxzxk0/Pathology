@@ -1,30 +1,30 @@
 """
-Flask Backend for SVS Tile Viewer with Annotation Support
-Serves DZI tiles and manages GeoJSON annotations
+Flask Backend for SVS Tile Viewer with Annotation & QC Support
+Serves DZI tiles, manages GeoJSON annotations, and Phase 1 QC Status
 """
 
 from flask import Flask, jsonify, request, send_from_directory, make_response
 from flask_cors import CORS
 import json
 from pathlib import Path
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
- 
-# Configuration
-BASE_DIR = Path(__file__).resolve().parent.parent
 
-DATA_DIR = BASE_DIR / "data"
-TILES_DIR = DATA_DIR / "tiles"
-ANNOTATIONS_DIR = DATA_DIR / "annotations"
-SLIDES_DIR = DATA_DIR / "slides"
-COSMX_DIR = DATA_DIR / "cosmx"
-COSMX_TILES_DIR = DATA_DIR / "cosmx_tiles"
+# Configuration
+TILES_DIR = Path(r"D:\병리\data\tiles")
+ANNOTATIONS_DIR = Path(r"D:\병리\data\annotations")
+COSMX_DIR = Path(r"D:\병리\data\cosmx")
+COSMX_TILES_DIR = Path(r"D:\병리\data\cosmx_tiles")
+QC_DIR = Path(r"D:\병리\data\qc_results") # Phase 1: QC 상태 저장 폴더
+
 # Ensure directories exist
 TILES_DIR.mkdir(parents=True, exist_ok=True)
 ANNOTATIONS_DIR.mkdir(parents=True, exist_ok=True)
 COSMX_DIR.mkdir(parents=True, exist_ok=True)
 COSMX_TILES_DIR.mkdir(parents=True, exist_ok=True)
+QC_DIR.mkdir(parents=True, exist_ok=True)
 
 # ============================================================================
 # COMMON RESPONSE HEADERS (CORS/CORP)
@@ -64,8 +64,34 @@ def list_slides():
 def serve_tiles(filepath):
     return send_from_directory(TILES_DIR, filepath)
 
+# ============================================================================
+# QC STATUS ENDPOINTS (For Phase 1 Sample Selection)
+# ============================================================================
 
+@app.route('/api/qc/<slide_id>', methods=['GET'])
+def get_qc_status(slide_id):
+    qc_file = QC_DIR / f"{slide_id}.json"
+    if qc_file.exists():
+        with open(qc_file, 'r', encoding='utf-8') as f:
+            return jsonify(json.load(f))
+    return jsonify({'status': 'unreviewed'})
 
+@app.route('/api/qc/<slide_id>', methods=['POST'])
+def save_qc_status(slide_id):
+    qc_file = QC_DIR / f"{slide_id}.json"
+    data = request.json
+    
+    qc_data = {
+        'slide_id': slide_id,
+        'status': data.get('status'),
+        'timestamp': datetime.now().isoformat(),
+        'reviewer': 'admin'
+    }
+    
+    with open(qc_file, 'w', encoding='utf-8') as f:
+        json.dump(qc_data, f, indent=2)
+        
+    return jsonify({'status': 'success', 'qc_status': qc_data['status']})
 
 # ============================================================================
 # ANNOTATION ENDPOINTS (GeoJSON)
@@ -103,56 +129,21 @@ def delete_annotations(slide_id):
 
 @app.route('/api/cosmx/<slide_id>/dzi', methods=['GET'])
 def get_cosmx_dzi(slide_id):
-    """CosMx DZI ì •ë³´ ë°˜í™˜"""
     dzi_file = COSMX_TILES_DIR / slide_id / f"{slide_id}.dzi"
-    
     if not dzi_file.exists():
         return jsonify({'error': 'No CosMx data for this slide'}), 404
-    
-    print(f"[CosMx] âœ… DZI found: {slide_id}")
     return jsonify({
         'has_cosmx': True,
         'dzi_url': f"/cosmx_tiles/{slide_id}/{slide_id}.dzi",
         'slide_id': slide_id
     })
 
-@app.route('/api/save-transform', methods=['POST'])
-def save_transform():
-    """Save transform.json for a slide"""
-    try:
-        data = request.json
-        slide_id = data.get('slide_id')
-        transform_data = data.get('transform_data')
-        
-        if not slide_id or not transform_data:
-            return jsonify({'error': 'Missing slide_id or transform_data'}), 400
-        
-        # Save to cosmx_tiles/SLIDE_ID/transform.json
-        output_dir = DATA_DIR / 'cosmx_tiles' / slide_id
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        output_file = output_dir / 'transform.json'
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(transform_data, f, indent=2)
-        
-        return jsonify({'success': True, 'path': str(output_file)})
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
 @app.route('/api/cosmx/<slide_id>/transform', methods=['GET'])
 def get_cosmx_transform(slide_id):
-    """CosMx Transform ì •ë³´ ë°˜í™˜"""
     transform_file = COSMX_TILES_DIR / slide_id / 'transform.json'
-    
     if transform_file.exists():
         with open(transform_file, 'r', encoding='utf-8') as f:
-            transform_data = json.load(f)
-            print(f"[CosMx] ðŸ“ Transform loaded: {slide_id}")
-            return jsonify(transform_data)
-    
-    # ê¸°ë³¸ê°’ (Identity)
-    print(f"[CosMx] â„¹ï¸ No transform file, using identity: {slide_id}")
+            return jsonify(json.load(f))
     return jsonify({
         'version': '1.0',
         'slide_id': slide_id,
@@ -162,23 +153,7 @@ def get_cosmx_transform(slide_id):
 
 @app.route('/cosmx_tiles/<path:filepath>')
 def serve_cosmx_tiles(filepath):
-    """CosMx DZI íƒ€ì¼ ì œê³µ"""
     return send_from_directory(COSMX_TILES_DIR, filepath)
-
-@app.route('/api/cosmx/<slide_id>/stats', methods=['GET'])
-def get_cosmx_stats(slide_id):
-    """CosMx í†µê³„ ì •ë³´"""
-    dzi_file = COSMX_TILES_DIR / slide_id / f"{slide_id}.dzi"
-    
-    if not dzi_file.exists():
-        return jsonify({'error': 'No CosMx data found'}), 404
-    
-    return jsonify({
-        'sample_id': slide_id,
-        'has_cosmx': True,
-        'type': 'dzi',
-        'file': f"{slide_id}.dzi"
-    })
 
 # ============================================================================
 # HEALTH CHECK
@@ -189,9 +164,6 @@ def health():
     return jsonify({'status': 'healthy', 'service': 'SVS Tile Viewer'})
 
 if __name__ == '__main__':
-    print("ðŸš€ Starting SVS Tile Viewer Backend...")
-    print(f"ðŸ“ Tiles directory: {TILES_DIR.absolute()}")
-    print(f"ðŸ“ Annotations directory: {ANNOTATIONS_DIR.absolute()}")
-    print(f"ðŸ§¬ CosMx directory: {COSMX_DIR.absolute()}")
-    print(f"ðŸ§¬ CosMx tiles directory: {COSMX_TILES_DIR.absolute()}")
+    print("🚀 Starting SVS Tile Viewer Backend...")
+    print(f"📂 QC directory: {QC_DIR.absolute()}")
     app.run(debug=True, host='0.0.0.0', port=5000)
