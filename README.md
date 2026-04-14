@@ -8,20 +8,21 @@ This project supports workflows where researchers need to visually compare
 morphology (H&E) and molecular spatial information (CosMx) within the same tissue.
 
 The system provides:
-- Deep zoom viewing of whole-slide H&E images
-- CosMx overlay visualization
-- Automatic orientation estimation (rotation + flip + translation)
-- Manual alignment refinement and transform saving
-- Region annotation (e.g., tumor/stroma)
+- Deep zoom dual-panel viewing (Left: H&E + AI annotations, Right: CosMx)
+- CosMx overlay visualization with transform controls
+- Automatic orientation estimation — **V8.2** (rotation + flip + translation + scale)
+- Fine registration — **3-stage grid search** (position + scale refinement)
+- Phase 1 QC workflow: sample approval/rejection for downstream registration
+- GeoJSON annotation import (read-only overlay, tumor/stroma/other)
 
 ---
 
 ## Repository Structure
 
 **Pathology/**
-- **backend/** : Flask API (serves slides, tiles, transforms, annotations)
-- **frontend/** : Web viewer UI (OpenSeadragon based)
-- **codes/** : preprocessing and alignment pipeline
+- **backend/** : Flask API (serves slides, tiles, transforms, annotations, QC status)
+- **frontend/** : Web viewer UI (OpenSeadragon dual-panel, Phase 1 QC)
+- **codes/** : Preprocessing and alignment pipeline
 - **data/** : **NOT INCLUDED IN REPO** (SVS/CosMx inputs + generated tiles)
 
 ⚠️ The `data/` directory is intentionally excluded from the repository due to
@@ -33,11 +34,12 @@ data/
   cosmx/         # (USER) CosMx composite images (.png)
   tiles/         # (AUTO) generated from slides/ by make_dzi.py
   cosmx_tiles/   # (AUTO) generated from cosmx/ + transform.json
-  annotations/   # (AUTO) saved when drawing in UI
+  annotations/   # (AUTO) saved GeoJSON annotations
+  qc_results/    # (AUTO) Phase 1 QC status per slide (.json)
 ```
 The folder names must match exactly. Do not rename them.
----
 
+---
 
 ## Requirements
 
@@ -112,20 +114,28 @@ python make_dzi.py --all --slides-dir ../data/slides --output-dir ../data/tiles
 python make_cosmx_dzi.py --all --cosmx-dir ../data/cosmx --output-dir ../data/cosmx_tiles
 ```
 
-### Step 3 — Automatic Alignment (CORE STEP)
+### Step 3 — Automatic Orientation Estimation (V8.2)
 
 ```bash
-python auto_orientation_past.py --all --data-dir ../data --refine --debug
+python auto_orientation.py --all --data-dir ../data --refine
 ```
 
-This step computes the **global alignment transform** between the H&E
-slide and the CosMx image.
+> ⚠️ `auto_orientation_past.py` has been removed. Use `auto_orientation.py` (V8.2).
 
-The algorithm estimates:
-- rotation (0°, 90°, 180°, 270°)
-- horizontal/vertical flip
-- approximate translation (position)
-- approximate scale
+This step computes the **global alignment transform** between the H&E slide and the CosMx image.
+
+The V8.2 algorithm estimates:
+- Rotation (0°, 90°, 180°, 270°)
+- Horizontal / vertical flip
+- Translation (position)
+- Scale
+
+Key improvements in V8.2 over previous versions:
+- **Phase correlation (0,0) fallback fix** — detects degenerate zero-shift results and automatically switches to template matching
+- **Dual-mode threshold relaxed** — trigger threshold raised from 0.35 → 0.45, switch margin changed from +0.03 → −0.01 (partial mode preferred more aggressively)
+- **Precision / IoU auto-switch** — uses Precision scoring for partial-coverage CosMx images, IoU for full-coverage, and linear blend in between
+- **Rectangular border removal** — detects and removes glass slide borders before tissue masking
+- **NCC tiebreaker** — top-4 candidates are re-evaluated using normalized cross-correlation
 
 Output:
 
@@ -133,7 +143,33 @@ Output:
 data/cosmx_tiles/<slide_id>/transform.json
 ```
 
-The viewer reads this file to overlay CosMx onto the H&E image.
+### Step 4 — Fine Registration (NEW)
+
+```bash
+python register_fine.py --all --data-dir ../data
+```
+
+Reads `transform.json` from Step 3 as initial values and performs **3-stage grid search** to refine position and scale:
+
+| Stage | Search range | Step size |
+|-------|-------------|-----------|
+| Coarse | ±25% canvas, scale ±15~60% | ~2% canvas |
+| Fine | ±5% canvas, scale ±10% | ~0.7% canvas |
+| Micro | ±20px, scale ±2% | 1px / 0.5% |
+
+Additional features:
+- **Coverage-aware scoring** — F1 (Precision × Recall) for full coverage; Precision-weighted for partial CosMx scans
+- **16-orientation rescue** — if initial score < 0.15, runs full 16-direction search from scratch using centroid matching + canvas sweep
+- **Flip scan** — tests all 4 flip combinations before coarse search
+- **Upward scale bias** — asymmetric scale range allows CosMx scale-up correction
+
+Output:
+
+```text
+data/cosmx_tiles/<slide_id>/transform_registered.json
+```
+
+The viewer automatically loads `transform_registered.json` if available, otherwise falls back to `transform.json`.
 
 ---
 
@@ -170,58 +206,89 @@ http://localhost:8000
 
 ---
 
-## Alignment Method Overview
+## Viewer Overview (Phase 1: Qualitative Benchmarking)
 
-The alignment algorithm performs an approximate global registration:
+The viewer is a **dual-panel interface**:
 
-1. Extract tissue masks from H&E and CosMx
-2. Compare tissue coverage ratio
-3. Test 16 orientation combinations:
-   - rotations: 0°, 90°, 180°, 270°
-   - flip X
-   - flip Y
-4. Estimate translation using phase correlation
-5. Perform local refinement around the best translation
+| Panel | Content |
+|-------|---------|
+| Left | H&E whole-slide image + imported AI GeoJSON annotations (read-only) |
+| Right | CosMx spatial transcriptomics overlay |
 
-This produces a global alignment suitable for visualization and ROI selection,
-but not cell-level registration.
+### Key Features
+
+**Sync mode** — synchronized pan/zoom between left and right panels (default: OFF for independent positioning)
+
+**QC Workflow** — approve or reject each slide for downstream registration:
+- ✅ Approve: marks slide as `approved` (saved to `data/qc_results/<slide_id>.json`)
+- ❌ Reject: marks slide as `rejected`
+- QC status is shown as a badge and persists across sessions
+
+**AI Annotation Import** — import GeoJSON annotation files exported from external AI models:
+- Annotations are displayed read-only with color coding:
+  - 🔴 **Tumor** — Red
+  - 🟢 **Stroma** — Green
+  - 🟣 **Other / In-situ** — Purple
+
+**CosMx Transform Controls** — adjust rotation, flip, and scale of the CosMx overlay manually if needed
 
 ---
 
-## Alignment Status and Ongoing Development
+## Backend API Endpoints
 
-The current alignment pipeline focuses on estimating a **whole-tissue global transform**.
-It is designed for visual correspondence rather than precise histological registration.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/slides` | List all available slides |
+| GET | `/tiles/<path>` | Serve H&E DZI tiles |
+| GET | `/api/qc/<slide_id>` | Get QC status for a slide |
+| POST | `/api/qc/<slide_id>` | Save QC status (approved/rejected) |
+| GET | `/api/annotations/<slide_id>` | Load GeoJSON annotations |
+| POST | `/api/annotations/<slide_id>` | Save GeoJSON annotations |
+| DELETE | `/api/annotations/<slide_id>` | Delete annotations |
+| GET | `/api/cosmx/<slide_id>/dzi` | Get CosMx DZI URL (registered or original) |
+| GET | `/api/cosmx/<slide_id>/transform` | Get alignment transform |
+| GET | `/cosmx_tiles/<path>` | Serve CosMx DZI tiles |
+| GET | `/health` | Health check |
 
-The following samples have been verified to have reliable orientation
-(rotation and flip) alignment, although fine-scale position and scale
-refinement is still ongoing:
+---
+
+## Alignment Method Overview (V8.2)
 
 ```
-3_2_cc5f738f-5a6e-83f1-8019-d4f484c158d6_152921
-3_4_81f5958c-a17d-1b21-319e-8246eaea2242_153255
-3_6_3f4bd19c-3831-031f-89dd-c69a43d2fdd5_153646
-3_7_edee787a-2318-5c90-bdd1-058a5b3cc54d_153828
-3_8_3792918c-5a59-9910-b304-d7d7049e36e0_154003
-3_16_e5e4e83e-46ca-ee7d-7f64-46f5ba0b0183_155845
-3_18_1ed35fb5-f264-11cd-b4de-f349af3ea4ab_160205
-3_19_bdc3dc21-6e16-faa2-65ba-b9b593835173_160447
+1. Load H&E and CosMx images at reduced resolution (default: 1024px)
+2. Generate tissue masks
+   - H&E: brightness threshold → rectangular border removal → fiducial removal → morphological cleanup
+   - CosMx: brightness + saturation → fiducial removal → dilation
+3. Estimate coverage ratio (partial vs full scan)
+4. Test 16 orientation combinations (4 rotations × 2 flipX × 2 flipY)
+   - Full coverage → phase correlation
+   - Partial coverage → multiscale template matching
+   - (0,0) fallback detection → auto-switch to template matching
+5. Dual-mode crosscheck if score < 0.45
+6. NCC tiebreaker among top-4 candidates
+7. Optional: local refinement (±30px search)
+8. Save transform.json
+
+Fine Registration (register_fine.py):
+9. Load transform.json as initial values
+10. Flip scan (4 combinations)
+11. If init score < 0.15 → 16-orientation rescue (centroid + sweep)
+12. Coarse → Fine → Micro 3-stage grid search
+13. Save transform_registered.json
 ```
 
-For these slides, CosMx and H&E are correctly oriented but may still
-require small manual adjustments within the viewer.
-
-Because H&E and CosMx originate from different section depths and
-preparation protocols, perfect pixel-level matching is not expected.
+This produces a global alignment suitable for visualization and ROI selection,
+but not cell-level registration. Fine registration improves position and scale
+accuracy beyond the initial orientation estimate.
 
 ---
 
 ## Notes
 
-- Designed for visualization and region selection
+- Designed for visualization and region selection (Phase 1 QC)
 - Not intended for cell-level registration
-- Slight spatial mismatch is biologically expected
-- Manual refinement is available in the UI and can be saved
+- Slight spatial mismatch is biologically expected (different section depths)
+- QC results are stored per-slide and used to select samples for further analysis
+- Manual CosMx transform adjustment is available in the viewer UI
 
 ---
-
