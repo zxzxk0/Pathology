@@ -327,12 +327,7 @@ transforms/
 
 > The viewer prioritizes `transform_registered.json` and falls back to `transform.json` if not found.
 
-### How to copy transforms to this folder
 
-```bash
-# Copy from D:\병리\data\cosmx_tiles\ into D:\Pathology\transforms\
-python copy_transforms.py --data-dir D:\병리\data --output-dir D:\Pathology\transforms
-```
 
 ---
 
