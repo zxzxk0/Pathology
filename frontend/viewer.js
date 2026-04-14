@@ -2,8 +2,6 @@
  * Phase 1: Qualitative Benchmarking Viewer
  * Left: H&E + Imported AI GeoJSON (Read-Only)
  * Right: CosMx Data
- * * - 스페이스바 화면 이동 로직 유지
- * - Delta 기반 Sync 및 수동 정렬 로직 유지
  */
 
 const API_BASE = 'http://localhost:5000/api';
@@ -22,18 +20,20 @@ let cosmxData = null;
 
 // Sync & Movement State
 let isSyncing = false;
-let syncEnabled = true;
+// 🌟 수정 3-3: Sync 초기값을 false(OFF)로 변경하여 초기 위치 조작을 용이하게 함
+let syncEnabled = false; 
 let lastLeftCenter = null;
 let lastLeftZoom = null;
 
 let cosmxTransformState = { rotation: 0, flipX: false, flipY: false, scale: 1.0 };
 
+// 🌟 수정 2-4: 교수님 요청 컬러코드 반영 (Tumor=Red, Stroma=Green, Other=Purple)
 const LABEL_COLORS = {
-  tumor: { stroke: '#e056fd', fill: 'rgba(224, 86, 253, 0.2)' },       // Vibrant Magenta 
-  stroma: { stroke: '#2e86de', fill: 'rgba(46, 134, 222, 0.2)' },      // Deep Blue 
-  lymphocyte: { stroke: '#00cec9', fill: 'rgba(0, 206, 201, 0.2)' },   // Bright Teal 
-  'in-situ': { stroke: '#6c5ce7', fill: 'rgba(108, 92, 231, 0.2)' },   // Soft Purple 
-  other: { stroke: '#f0932b', fill: 'rgba(240, 147, 43, 0.2)' }        // Muted Orange 
+  tumor: { stroke: '#e74c3c', fill: 'rgba(231, 76, 60, 0.2)' },       // Red
+  stroma: { stroke: '#2ecc71', fill: 'rgba(46, 204, 113, 0.2)' },     // Green
+  lymphocyte: { stroke: '#9b59b6', fill: 'rgba(155, 89, 182, 0.2)' }, // Purple (Other)
+  'in-situ': { stroke: '#9b59b6', fill: 'rgba(155, 89, 182, 0.2)' },  // Purple (Other)
+  other: { stroke: '#9b59b6', fill: 'rgba(155, 89, 182, 0.2)' }       // Purple
 };
 
 // ============================================================================
@@ -41,7 +41,6 @@ const LABEL_COLORS = {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('🚀 Starting Phase 1 dual viewer (Movement logic restored)...');
   initDualViewers();
   initAnnotorious();
   setupSync();
@@ -75,7 +74,7 @@ function initAnnotorious() {
   };
 
   annotorious = OpenSeadragon.Annotorious(viewerLeft, {
-    readOnly: true, 
+    readOnly: true, // Phase 1
     allowEmpty: true,
     drawOnSingleClick: false,
     disableEditor: true,
@@ -84,7 +83,7 @@ function initAnnotorious() {
 }
 
 // ============================================================================
-// SYNCHRONIZATION 
+// SYNCHRONIZATION
 // ============================================================================
 
 function setupSync() {
@@ -102,9 +101,7 @@ function setupSync() {
         const dx = currentCenter.x - lastLeftCenter.x;
         const dy = currentCenter.y - lastLeftCenter.y;
         const rightCenter = viewerRight.viewport.getCenter();
-        if (rightCenter) {
-          viewerRight.viewport.panTo(new OpenSeadragon.Point(rightCenter.x + dx, rightCenter.y + dy), true);
-        }
+        if (rightCenter) viewerRight.viewport.panTo(new OpenSeadragon.Point(rightCenter.x + dx, rightCenter.y + dy), true);
       }
       lastLeftCenter = currentCenter.clone();
     } finally { isSyncing = false; }
@@ -118,9 +115,7 @@ function setupSync() {
       if (lastLeftZoom && lastLeftZoom > 0) {
         const zoomRatio = currentZoom / lastLeftZoom;
         const rightZoom = viewerRight.viewport.getZoom();
-        if (rightZoom) {
-          viewerRight.viewport.zoomTo(rightZoom * zoomRatio, null, true);
-        }
+        if (rightZoom) viewerRight.viewport.zoomTo(rightZoom * zoomRatio, null, true);
       }
       lastLeftZoom = currentZoom;
     } finally { isSyncing = false; }
@@ -151,7 +146,7 @@ function resyncPanels() {
 }
 
 // ============================================================================
-// UI & EVENTS 
+// UI & EVENTS
 // ============================================================================
 
 function setupUI() {
@@ -159,11 +154,9 @@ function setupUI() {
     if (e.target.value) loadSlide(e.target.value);
   };
 
-  // Phase 1 QC
   document.getElementById('btnApprove').onclick = () => setQCStatus('approved');
   document.getElementById('btnReject').onclick = () => setQCStatus('rejected');
 
-  // Import GeoJSON
   document.getElementById('importBtn').onclick = () => document.getElementById('importInput').click();
   document.getElementById('importInput').onchange = (e) => {
     if (e.target.files[0]) importGeoJSON(e.target.files[0]);
@@ -173,7 +166,6 @@ function setupUI() {
     if (confirm('Clear all overlays?')) { annotorious.clearAnnotations(); updateCount(); }
   };
 
-  // Sync / CosMx Toggles
   document.getElementById('syncToggle').onclick = toggleSync;
   document.getElementById('resyncBtn').onclick = resyncPanels;
   document.getElementById('cosmxToggle').onclick = (e) => {
@@ -183,10 +175,8 @@ function setupUI() {
     if (cosmxVisible) { if (cosmxData?.dziUrl) renderCosMxOverlay(); } else removeCosMxLayerOnly();
   };
 
-  // CosMx Transform Controls 연동
   setupTransformUI();
 
-  // [복구 완료] 스페이스바(Space)를 통한 화면 이동(Pan) 로직
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
       viewerLeft.gestureSettingsMouse.dragToPan = true;
@@ -197,12 +187,8 @@ function setupUI() {
 
   window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') {
-      const deleteBtn = document.getElementById('deleteMode');
-      const isDeleteMode = deleteBtn && deleteBtn.textContent === 'Exit Delete';
-      if (!isDeleteMode) {
-        viewerLeft.gestureSettingsMouse.dragToPan = false;
-        if(viewerRight) viewerRight.gestureSettingsMouse.dragToPan = false;
-      }
+      viewerLeft.gestureSettingsMouse.dragToPan = false;
+      if(viewerRight) viewerRight.gestureSettingsMouse.dragToPan = false;
       e.preventDefault();
     }
   });
@@ -283,8 +269,6 @@ function importGeoJSON(file) {
       
       const annotations = geojson.features.map(f => {
         const coords = f.geometry.coordinates[0];
-        
-        // 🌟 수정된 부분: QuPath 포맷 인식 및 소문자 변환
         let rawLabel = 'other';
         if (f.properties?.classification?.name) {
           rawLabel = f.properties.classification.name;
@@ -307,14 +291,13 @@ function importGeoJSON(file) {
       annotations.forEach(anno => annotorious.addAnnotation(anno));
       setTimeout(() => annotorious.setAnnotations(annotorious.getAnnotations()), 100);
       updateCount();
-      console.log(`✅ Imported ${annotations.length} annotations`);
     } catch (err) { alert(`Failed to import GeoJSON: ${err.message}`); }
   };
   reader.readAsText(file);
 }
 
 // ============================================================================
-// COSMX LOGIC & TRANSFORMS 
+// COSMX LOGIC & TRANSFORMS
 // ============================================================================
 
 async function loadCosMxData() {
@@ -323,32 +306,113 @@ async function loadCosMxData() {
     const dziRes = await fetch(`${API_BASE}/cosmx/${encodeURIComponent(currentSlideId)}/dzi`);
     if (!dziRes.ok) return;
     const dziData = await dziRes.json();
-    
+
     const transformRes = await fetch(`${API_BASE}/cosmx/${encodeURIComponent(currentSlideId)}/transform`);
     const transformData = transformRes.ok ? await transformRes.json() : { transform: 'identity' };
-    
-    cosmxData = { dziUrl: `http://localhost:5000${dziData.dzi_url}`, tiledImage: null, transform: transformData };
+
+    const isRegistered = !!(dziData.registered);
+    const dziUrl = `http://localhost:5000${dziData.dzi_url}`;
+    console.log('[CosMx] isRegistered:', isRegistered);
+    console.log('[CosMx] dziUrl:', dziData.dzi_url);
+
+    cosmxData = {
+      dziUrl, tiledImage: null,
+      transform: isRegistered ? { transform: 'identity' } : transformData,
+      isRegistered
+    };
     if (cosmxVisible) await renderCosMxOverlay();
-  } catch (err) { clearCosMxOverlay(true); }
+  } catch (err) { console.error('[CosMx] loadCosMxData error:', err); clearCosMxOverlay(true); }
 }
 
 async function renderCosMxOverlay() {
   if (!cosmxVisible || !cosmxData?.dziUrl || !viewerRight || cosmxData.tiledImage) return;
+
   viewerRight.addTiledImage({
     tileSource: cosmxData.dziUrl,
     opacity: 1.0, index: 0,
     success: (event) => {
       cosmxData.tiledImage = event.item;
-      applyCosMxTransform(event.item, cosmxData.transform);
-      syncToLeftPanel();
+
+      if (!cosmxData.isRegistered) {
+        applyCosMxTransform(event.item, cosmxData.transform);
+        syncToLeftPanel();
+        return;
+      }
+
+      // ── Registered DZI 디버깅 ──────────────────────────────────────────
+      const item = event.item;
+
+      // 1. tiled image bounds (right viewer world 좌표)
+      const ib = item.getBounds();
+      console.log('[DEBUG] CosMx tiled image bounds:', JSON.stringify({
+        x: ib.x, y: ib.y, w: ib.width, h: ib.height
+      }));
+
+      // 2. H&E tiled image bounds (left viewer world 좌표)
+      const heItem = viewerLeft.world.getItemAt(0);
+      if (heItem) {
+        const hb = heItem.getBounds();
+        console.log('[DEBUG] H&E tiled image bounds:', JSON.stringify({
+          x: hb.x, y: hb.y, w: hb.width, h: hb.height
+        }));
+      }
+
+      // 3. left viewport 상태
+      const lVP = viewerLeft.viewport;
+      console.log('[DEBUG] LEFT viewport zoom:', lVP.getZoom(true));
+      console.log('[DEBUG] LEFT viewport center:', JSON.stringify(lVP.getCenter(true)));
+      const lBounds = lVP.getBounds(true);
+      console.log('[DEBUG] LEFT viewport bounds:', JSON.stringify({
+        x: lBounds.x, y: lBounds.y, w: lBounds.width, h: lBounds.height
+      }));
+
+      // 4. right viewport 상태 (CosMx 추가 직후)
+      const rVP = viewerRight.viewport;
+      console.log('[DEBUG] RIGHT viewport zoom (before sync):', rVP.getZoom(true));
+      console.log('[DEBUG] RIGHT viewport center (before sync):', JSON.stringify(rVP.getCenter(true)));
+      const rBounds = rVP.getBounds(true);
+      console.log('[DEBUG] RIGHT viewport bounds (before sync):', JSON.stringify({
+        x: rBounds.x, y: rBounds.y, w: rBounds.width, h: rBounds.height
+      }));
+
+      // 5. 패널 스크린 크기
+      const leftEl  = document.getElementById('viewerLeft');
+      const rightEl = document.getElementById('viewerRight');
+      console.log('[DEBUG] LEFT panel screen size:', leftEl?.clientWidth, 'x', leftEl?.clientHeight);
+      console.log('[DEBUG] RIGHT panel screen size:', rightEl?.clientWidth, 'x', rightEl?.clientHeight);
+
+      // 6. goHome + sync
+      rVP.goHome(true);
+      setTimeout(() => {
+        console.log('[DEBUG] RIGHT viewport zoom (after goHome):', rVP.getZoom(true));
+        console.log('[DEBUG] RIGHT viewport center (after goHome):', JSON.stringify(rVP.getCenter(true)));
+
+        lVP.goHome(true);
+        setTimeout(() => {
+          console.log('[DEBUG] LEFT viewport zoom (after goHome):', lVP.getZoom(true));
+          console.log('[DEBUG] LEFT viewport center (after goHome):', JSON.stringify(lVP.getCenter(true)));
+          syncToLeftPanel();
+          setTimeout(() => {
+            console.log('[DEBUG] RIGHT viewport zoom (after sync):', rVP.getZoom(true));
+            console.log('[DEBUG] RIGHT viewport center (after sync):', JSON.stringify(rVP.getCenter(true)));
+            const rb2 = rVP.getBounds(true);
+            console.log('[DEBUG] RIGHT viewport bounds (after sync):', JSON.stringify({
+              x: rb2.x, y: rb2.y, w: rb2.width, h: rb2.height
+            }));
+          }, 100);
+        }, 200);
+      }, 300);
     }
   });
 }
 
 function syncToLeftPanel() {
   if (!viewerLeft?.viewport || !viewerRight?.viewport) return;
-  viewerRight.viewport.zoomTo(viewerLeft.viewport.getZoom(), null, true);
-  viewerRight.viewport.panTo(viewerLeft.viewport.getCenter(), true);
+  const zoom   = viewerLeft.viewport.getZoom(true);
+  const center = viewerLeft.viewport.getCenter(true);
+  console.log('[SYNC] copying zoom:', zoom, 'center:', JSON.stringify(center));
+  viewerRight.viewport.zoomTo(zoom, null, true);
+  viewerRight.viewport.panTo(center, true);
 }
 
 function applyCosMxTransform(tiledImage, transformData) {
@@ -451,6 +515,5 @@ function saveCosMxPosition() {
   return pos;
 }
 
-function extractCoords(annotation) { const m = annotation.target?.selector?.value.match(/points\s*=\s*["']([^"']+)["']/i); return m ? m[1].trim().split(/\s+/).map(p => p.split(',').map(Number)) : []; }
 function coordsToSvg(coords) { return `<svg><polygon points="${coords.map(([x, y]) => `${x},${y}`).join(' ')}"/></svg>`; }
 function updateCount() { document.getElementById('annotationCount').textContent = annotorious.getAnnotations().length; }

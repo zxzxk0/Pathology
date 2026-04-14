@@ -129,23 +129,48 @@ def delete_annotations(slide_id):
 
 @app.route('/api/cosmx/<slide_id>/dzi', methods=['GET'])
 def get_cosmx_dzi(slide_id):
-    dzi_file = COSMX_TILES_DIR / slide_id / f"{slide_id}.dzi"
-    if not dzi_file.exists():
+    # make_cosmx_registered_dzi.py가 저장하는 실제 경로 (평탄한 구조)
+    # cosmx_tiles/{slide_id}/{slide_id}_registered.dzi
+    registered_dzi = COSMX_TILES_DIR / slide_id / f"{slide_id}_registered.dzi"
+    original_dzi   = COSMX_TILES_DIR / slide_id / f"{slide_id}.dzi"
+
+    if registered_dzi.exists():
+        return jsonify({
+            'has_cosmx': True,
+            'dzi_url':   f"/cosmx_tiles/{slide_id}/{slide_id}_registered.dzi",
+            'slide_id':  slide_id,
+            'registered': True
+        })
+    elif original_dzi.exists():
+        return jsonify({
+            'has_cosmx': True,
+            'dzi_url':   f"/cosmx_tiles/{slide_id}/{slide_id}.dzi",
+            'slide_id':  slide_id,
+            'registered': False
+        })
+    else:
         return jsonify({'error': 'No CosMx data for this slide'}), 404
-    return jsonify({
-        'has_cosmx': True,
-        'dzi_url': f"/cosmx_tiles/{slide_id}/{slide_id}.dzi",
-        'slide_id': slide_id
-    })
 
 @app.route('/api/cosmx/<slide_id>/transform', methods=['GET'])
 def get_cosmx_transform(slide_id):
-    transform_file = COSMX_TILES_DIR / slide_id / 'transform.json'
-    if transform_file.exists():
-        with open(transform_file, 'r', encoding='utf-8') as f:
-            return jsonify(json.load(f))
+    # registered DZI가 있으면 identity 반환
+    registered_dzi = COSMX_TILES_DIR / slide_id / f"{slide_id}_registered.dzi"
+    if registered_dzi.exists():
+        return jsonify({
+            'version':  '1.0',
+            'slide_id': slide_id,
+            'transform': 'identity',
+            'notes': 'Transform pre-applied in registered DZI'
+        })
+
+    for fname in ['transform_registered.json', 'transform.json']:
+        tf_file = COSMX_TILES_DIR / slide_id / fname
+        if tf_file.exists():
+            with open(tf_file, 'r', encoding='utf-8') as f:
+                return jsonify(json.load(f))
+
     return jsonify({
-        'version': '1.0',
+        'version':  '1.0',
         'slide_id': slide_id,
         'transform': 'identity',
         'notes': 'No transform file found'
