@@ -20,19 +20,22 @@ let cosmxData = null;
 
 // Sync & Movement State
 let isSyncing = false;
-// 🌟 수정 3-3: Sync 초기값을 false(OFF)로 변경하여 초기 위치 조작을 용이하게 함
 let syncEnabled = false; 
 let lastLeftCenter = null;
 let lastLeftZoom = null;
 
 let cosmxTransformState = { rotation: 0, flipX: false, flipY: false, scale: 1.0 };
 
-// 🌟 수정 2-4: 교수님 요청 컬러코드 반영 (Tumor=Red, Stroma=Green, Other=Purple)
+// 🌟 Point Overlay 전용 State
+const pointOverlay = { left: null };
+const POINT_RADIUS = 20;
+
+// 🌟 라벨 색상 (Lymphocyte를 파란색/Cyan으로 변경)
 const LABEL_COLORS = {
   tumor: { stroke: '#e74c3c', fill: 'rgba(231, 76, 60, 0.2)' },       // Red
   stroma: { stroke: '#2ecc71', fill: 'rgba(46, 204, 113, 0.2)' },     // Green
-  lymphocyte: { stroke: '#9b59b6', fill: 'rgba(155, 89, 182, 0.2)' }, // Purple (Other)
-  'in-situ': { stroke: '#9b59b6', fill: 'rgba(155, 89, 182, 0.2)' },  // Purple (Other)
+  lymphocyte: { stroke: '#00ffff', fill: 'rgba(0, 255, 255, 0.2)' },  // Cyan (Blue)
+  'in-situ': { stroke: '#f1c40f', fill: 'rgba(241, 196, 15, 0.2)' },  // Yellow
   other: { stroke: '#9b59b6', fill: 'rgba(155, 89, 182, 0.2)' }       // Purple
 };
 
@@ -163,7 +166,11 @@ function setupUI() {
     e.target.value = '';
   };
   document.getElementById('clearAll').onclick = () => {
-    if (confirm('Clear all overlays?')) { annotorious.clearAnnotations(); updateCount(); }
+    if (confirm('Clear all overlays?')) { 
+      annotorious.clearAnnotations(); 
+      clearPointOverlay('left');
+      updateCount(0); 
+    }
   };
 
   document.getElementById('syncToggle').onclick = toggleSync;
@@ -243,6 +250,7 @@ async function loadSlides() {
 async function loadSlide(slideId) {
   currentSlideId = slideId;
   annotorious.clearAnnotations();
+  clearPointOverlay('left'); // 포인트 오버레이 초기화
   clearCosMxOverlay(true);
   cosmxTransformState = { rotation: 0, flipX: false, flipY: false, scale: 1.0 };
   updateTransformUI();
@@ -267,33 +275,108 @@ function importGeoJSON(file) {
       const geojson = JSON.parse(e.target.result);
       if (!geojson.features) return alert('Invalid GeoJSON');
       
-      const annotations = geojson.features.map(f => {
-        const coords = f.geometry.coordinates[0];
-        let rawLabel = 'other';
-        if (f.properties?.classification?.name) {
-          rawLabel = f.properties.classification.name;
-        } else if (f.properties?.name) {
-          rawLabel = f.properties.name;
-        } else if (f.properties?.label) {
-          rawLabel = f.properties.label;
-        }
-        
-        const label = String(rawLabel).toLowerCase().trim();
-
-        return {
-          '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation',
-          body: [{ type: 'TextualBody', purpose: 'tagging', value: label }],
-          target: { selector: { type: 'SvgSelector', value: coordsToSvg(coords) } }
-        };
-      });
+      // 🌟 Polygon과 Point 객체 분리 필터링
+      const pointFeatures = geojson.features.filter(f => f.geometry.type === 'Point');
+      const polygonFeatures = geojson.features.filter(f => f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
       
-      annotorious.clearAnnotations();
-      annotations.forEach(anno => annotorious.addAnnotation(anno));
-      setTimeout(() => annotorious.setAnnotations(annotorious.getAnnotations()), 100);
-      updateCount();
+      let totalCount = 0;
+
+      // 1. Polygon 렌더링 (Annotorious 사용)
+      if (polygonFeatures.length > 0) {
+        const annotations = polygonFeatures.map(f => {
+          const coords = f.geometry.type === 'Polygon' 
+                         ? f.geometry.coordinates[0] 
+                         : f.geometry.coordinates[0][0];
+
+          let rawLabel = 'other';
+          if (f.properties?.classification?.name) rawLabel = f.properties.classification.name;
+          else if (f.properties?.name) rawLabel = f.properties.name;
+          else if (f.properties?.label) rawLabel = f.properties.label;
+          
+          const label = String(rawLabel).toLowerCase().trim();
+
+          return {
+            '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation',
+            body: [{ type: 'TextualBody', purpose: 'tagging', value: label }],
+            target: { selector: { type: 'SvgSelector', value: coordsToSvg(coords) } }
+          };
+        });
+        
+        annotorious.clearAnnotations();
+        annotations.forEach(anno => annotorious.addAnnotation(anno));
+        setTimeout(() => annotorious.setAnnotations(annotorious.getAnnotations()), 100);
+        totalCount += annotations.length;
+      }
+
+      // 2. Point 렌더링 (단일 고속 SVG 오버레이 사용)
+      if (pointFeatures.length > 0) {
+        renderPointOverlay(viewerLeft, 'left', pointFeatures);
+        totalCount += pointFeatures.length;
+      }
+
+      updateCount(totalCount);
     } catch (err) { alert(`Failed to import GeoJSON: ${err.message}`); }
   };
   reader.readAsText(file);
+}
+
+// ============================================================================
+// 🌟 FAST POINT OVERLAY LOGIC (Point 객체 고속 렌더링)
+// ============================================================================
+
+function renderPointOverlay(viewer, panel, features) {
+  clearPointOverlay(panel);
+  const tiledImage = viewer.world.getItemAt(0);
+  if (!tiledImage) return;
+  
+  const imgSize = tiledImage.getContentSize();
+  const topLeft = tiledImage.imageToViewportCoordinates(0, 0);
+  const botRight = tiledImage.imageToViewportCoordinates(imgSize.x, imgSize.y);
+  
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('xmlns', svgNS);
+  svg.setAttribute('viewBox', `0 0 ${imgSize.x} ${imgSize.y}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;';
+  
+  const color = LABEL_COLORS['lymphocyte']; // 파란색 지정
+  const r = POINT_RADIUS;
+  const parts = [];
+  
+  // 모든 Point 좌표를 단일 Path 스트링으로 결합 (렌더링 부하 최소화)
+  for (const f of features) {
+    const [cx, cy] = f.geometry.coordinates;
+    parts.push(`M${cx - r},${cy}A${r},${r},0,1,0,${cx + r},${cy}A${r},${r},0,1,0,${cx - r},${cy}Z`);
+  }
+  
+  const path = document.createElementNS(svgNS, 'path');
+  path.setAttribute('d', parts.join(' '));
+  path.setAttribute('fill', color.fill);
+  path.setAttribute('stroke', color.stroke);
+  path.setAttribute('stroke-width', String(r * 0.5));
+  svg.appendChild(path);
+  
+  const overlayEl = document.createElement('div');
+  overlayEl.style.cssText = 'pointer-events:none;position:absolute;width:100%;height:100%;';
+  overlayEl.appendChild(svg);
+  
+  viewer.addOverlay({
+    element: overlayEl,
+    location: new OpenSeadragon.Rect(
+      topLeft.x, topLeft.y,
+      botRight.x - topLeft.x, botRight.y - topLeft.y
+    )
+  });
+  
+  pointOverlay[panel] = { overlayEl, count: features.length };
+}
+
+function clearPointOverlay(panel) {
+  const state = pointOverlay[panel];
+  if (!state) return;
+  try { viewerLeft.removeOverlay(state.overlayEl); } catch (_) {}
+  pointOverlay[panel] = null;
 }
 
 // ============================================================================
@@ -339,67 +422,15 @@ async function renderCosMxOverlay() {
         return;
       }
 
-      // ── Registered DZI 디버깅 ──────────────────────────────────────────
       const item = event.item;
-
-      // 1. tiled image bounds (right viewer world 좌표)
-      const ib = item.getBounds();
-      console.log('[DEBUG] CosMx tiled image bounds:', JSON.stringify({
-        x: ib.x, y: ib.y, w: ib.width, h: ib.height
-      }));
-
-      // 2. H&E tiled image bounds (left viewer world 좌표)
-      const heItem = viewerLeft.world.getItemAt(0);
-      if (heItem) {
-        const hb = heItem.getBounds();
-        console.log('[DEBUG] H&E tiled image bounds:', JSON.stringify({
-          x: hb.x, y: hb.y, w: hb.width, h: hb.height
-        }));
-      }
-
-      // 3. left viewport 상태
       const lVP = viewerLeft.viewport;
-      console.log('[DEBUG] LEFT viewport zoom:', lVP.getZoom(true));
-      console.log('[DEBUG] LEFT viewport center:', JSON.stringify(lVP.getCenter(true)));
-      const lBounds = lVP.getBounds(true);
-      console.log('[DEBUG] LEFT viewport bounds:', JSON.stringify({
-        x: lBounds.x, y: lBounds.y, w: lBounds.width, h: lBounds.height
-      }));
-
-      // 4. right viewport 상태 (CosMx 추가 직후)
       const rVP = viewerRight.viewport;
-      console.log('[DEBUG] RIGHT viewport zoom (before sync):', rVP.getZoom(true));
-      console.log('[DEBUG] RIGHT viewport center (before sync):', JSON.stringify(rVP.getCenter(true)));
-      const rBounds = rVP.getBounds(true);
-      console.log('[DEBUG] RIGHT viewport bounds (before sync):', JSON.stringify({
-        x: rBounds.x, y: rBounds.y, w: rBounds.width, h: rBounds.height
-      }));
 
-      // 5. 패널 스크린 크기
-      const leftEl  = document.getElementById('viewerLeft');
-      const rightEl = document.getElementById('viewerRight');
-      console.log('[DEBUG] LEFT panel screen size:', leftEl?.clientWidth, 'x', leftEl?.clientHeight);
-      console.log('[DEBUG] RIGHT panel screen size:', rightEl?.clientWidth, 'x', rightEl?.clientHeight);
-
-      // 6. goHome + sync
       rVP.goHome(true);
       setTimeout(() => {
-        console.log('[DEBUG] RIGHT viewport zoom (after goHome):', rVP.getZoom(true));
-        console.log('[DEBUG] RIGHT viewport center (after goHome):', JSON.stringify(rVP.getCenter(true)));
-
         lVP.goHome(true);
         setTimeout(() => {
-          console.log('[DEBUG] LEFT viewport zoom (after goHome):', lVP.getZoom(true));
-          console.log('[DEBUG] LEFT viewport center (after goHome):', JSON.stringify(lVP.getCenter(true)));
           syncToLeftPanel();
-          setTimeout(() => {
-            console.log('[DEBUG] RIGHT viewport zoom (after sync):', rVP.getZoom(true));
-            console.log('[DEBUG] RIGHT viewport center (after sync):', JSON.stringify(rVP.getCenter(true)));
-            const rb2 = rVP.getBounds(true);
-            console.log('[DEBUG] RIGHT viewport bounds (after sync):', JSON.stringify({
-              x: rb2.x, y: rb2.y, w: rb2.width, h: rb2.height
-            }));
-          }, 100);
         }, 200);
       }, 300);
     }
@@ -408,9 +439,8 @@ async function renderCosMxOverlay() {
 
 function syncToLeftPanel() {
   if (!viewerLeft?.viewport || !viewerRight?.viewport) return;
-  const zoom   = viewerLeft.viewport.getZoom(true);
+  const zoom = viewerLeft.viewport.getZoom(true);
   const center = viewerLeft.viewport.getCenter(true);
-  console.log('[SYNC] copying zoom:', zoom, 'center:', JSON.stringify(center));
   viewerRight.viewport.zoomTo(zoom, null, true);
   viewerRight.viewport.panTo(center, true);
 }
@@ -422,25 +452,73 @@ function applyCosMxTransform(tiledImage, transformData) {
   if (!heLayer) return;
   const heBounds = heLayer.getBounds();
   
-  let effectiveRotation = t.rotation || 0;
-  let effectiveFlipX = t.flipX || t.flip_h || false;
-  if (t.flipY) { effectiveRotation = (effectiveRotation + 180) % 360; effectiveFlipX = !effectiveFlipX; }
+  let py_rot = t.rotation || 0;
+  let py_fx = t.flipX || t.flip_h || false;
+  let py_fy = t.flipY || false;
   
-  if (effectiveRotation) tiledImage.setRotation(effectiveRotation, true);
-  if (effectiveFlipX) tiledImage.setFlip(true);
+  let vX = {x:1, y:0}, vY = {x:0, y:1};
+  let k = Math.floor(py_rot / 90) % 4;
+  for(let i=0; i<k; i++) { vX = {x: vX.y, y: -vX.x}; vY = {x: vY.y, y: -vY.x}; }
+  if (py_fx) { vX.x = -vX.x; vY.x = -vY.x; }
+  if (py_fy) { vX.y = -vX.y; vY.y = -vY.y; }
   
-  const transformScale = t.scale || 1.0;
-  tiledImage.setWidth(heBounds.width * transformScale, true);
+  let osdFlipX = false, osdRotCW = 0;
+  for (let flip of [false, true]) {
+      for (let rot of [0, 90, 180, 270]) {
+          let oX = {x:1, y:0}, oY = {x:0, y:1};
+          if (flip) { oX.x = -oX.x; oY.x = -oY.x; }
+          let rk = Math.floor(rot / 90) % 4;
+          for(let i=0; i<rk; i++) { oX = {x: -oX.y, y: oX.x}; oY = {x: -oY.y, y: oY.x}; }
+          if (vX.x === oX.x && vX.y === oX.y && vY.x === oY.x && vY.y === oY.y) {
+              osdFlipX = flip; osdRotCW = rot; break;
+          }
+      }
+  }
+  
+  tiledImage.setRotation(osdRotCW, true);
+  tiledImage.setFlip(osdFlipX);
+  
+  let cxOrigW = tiledImage.source.width;
+  let cxOrigH = tiledImage.source.height;
+  let osdScale = t.scale || 1.0;
+  
+  if (transformData.original_sizes) {
+      const heOrig = transformData.original_sizes.he;
+      const cxOrig = transformData.original_sizes.cosmx;
+      cxOrigW = cxOrig[0]; 
+      cxOrigH = cxOrig[1];
+      
+      const heThumbW = Math.floor(heOrig[0] * Math.min(1024 / heOrig[0], 1024 / heOrig[1]));
+      const cxThumbW = Math.floor(cxOrig[0] * Math.min(1024 / cxOrig[0], 1024 / cxOrig[1]));
+      osdScale = (t.scale * cxThumbW) / heThumbW;
+  }
+  
+  const W_unrot = heBounds.width * osdScale;
+  const H_unrot = W_unrot * (cxOrigH / cxOrigW);
+  tiledImage.setWidth(W_unrot, true);
   
   let dx = 0, dy = 0;
-  if (t.translateX !== undefined) { dx = t.translateX * heBounds.width; dy = t.translateY * heBounds.height; }
-  else if (t.x !== undefined) { dx = t.x; dy = t.y; }
+  if (t.translateX !== undefined) { 
+      dx = t.translateX * heBounds.width + heBounds.x; 
+      dy = t.translateY * heBounds.height + heBounds.y; 
+  } else if (t.x !== undefined) { 
+      dx = t.x; dy = t.y; 
+  }
   
-  if (dx !== 0 || dy !== 0) tiledImage.setPosition(new OpenSeadragon.Point(tiledImage.getBounds().x + dx, tiledImage.getBounds().y + dy), true);
+  const target_W = (osdRotCW % 180 !== 0) ? H_unrot : W_unrot;
+  const target_H = (osdRotCW % 180 !== 0) ? W_unrot : H_unrot;
   
-  cosmxTransformState.rotation = t.rotation || 0;
-  cosmxTransformState.flipX = t.flipX || t.flip_h || false;
-  cosmxTransformState.flipY = t.flipY || false;
+  const cX = dx + target_W / 2;
+  const cY = dy + target_H / 2;
+  
+  const Pos_X = cX - W_unrot / 2;
+  const Pos_Y = cY - H_unrot / 2;
+  
+  tiledImage.setPosition(new OpenSeadragon.Point(Pos_X, Pos_Y), true);
+  
+  cosmxTransformState.rotation = py_rot;
+  cosmxTransformState.flipX = py_fx;
+  cosmxTransformState.flipY = py_fy;
   cosmxTransformState.scale = t.scale || 1.0;
   updateTransformUI();
 }
@@ -516,4 +594,12 @@ function saveCosMxPosition() {
 }
 
 function coordsToSvg(coords) { return `<svg><polygon points="${coords.map(([x, y]) => `${x},${y}`).join(' ')}"/></svg>`; }
-function updateCount() { document.getElementById('annotationCount').textContent = annotorious.getAnnotations().length; }
+
+function updateCount(value) {
+  const el = document.getElementById('annotationCount');
+  if (el) {
+    const annotoriousCount = annotorious ? annotorious.getAnnotations().length : 0;
+    const pointCount = pointOverlay.left ? pointOverlay.left.count : 0;
+    el.textContent = (typeof value === 'number') ? value : (annotoriousCount + pointCount);
+  }
+}
