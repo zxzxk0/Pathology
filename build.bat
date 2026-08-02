@@ -72,25 +72,10 @@ if errorlevel 1 (
 )
 
 echo.
-echo [CHECK] Detecting Tcl/Tk used by build venv...
-for /f "delims=" %%i in ('python -c "import tkinter; t=tkinter.Tcl(); print(t.eval('info patchlevel'))"') do set "TCL_VER=%%i"
-for /f "delims=" %%i in ('python -c "import tkinter; t=tkinter.Tcl(); print(t.eval('info library'))"') do set "TCL_SRC=%%i"
-for /f "delims=" %%i in ('python -c "import tkinter; t=tkinter.Tcl(); t.eval('package require Tk'); print(t.eval('set tk_library'))"') do set "TK_SRC=%%i"
-
-echo [INFO] Tcl version : %TCL_VER%
-echo [INFO] Tcl source  : %TCL_SRC%
-echo [INFO] Tk source   : %TK_SRC%
-
-if not exist "%TCL_SRC%\init.tcl" (
-    echo [ERROR] Tcl init.tcl not found in: %TCL_SRC%
-    pause & exit /b 1
-)
-if not exist "%TK_SRC%\tk.tcl" (
-    echo [ERROR] Tk tk.tcl not found in: %TK_SRC%
-    pause & exit /b 1
-)
-
+echo [INFO] Skipping manual Tcl/Tk detection.
+echo        PyInstaller will handle bundled Tcl/Tk files automatically.
 echo.
+
 echo [INFO] Installing openslide-bin (Windows DLLs)...
 python -m pip install openslide-bin
 if errorlevel 1 (
@@ -130,35 +115,6 @@ set "DIST_EXE=%DIST_DIR%\Pathogene.exe"
 
 if not exist "%DIST_DIR%" (
     echo [ERROR] Dist folder was not created: %DIST_DIR%
-    pause & exit /b 1
-)
-
-echo.
-echo [FIX] Replacing bundled Tcl/Tk with the build venv Tcl/Tk...
-
-if exist "%DIST_DIR%\_internal\_tcl_data" rmdir /s /q "%DIST_DIR%\_internal\_tcl_data"
-if exist "%DIST_DIR%\_internal\_tk_data" rmdir /s /q "%DIST_DIR%\_internal\_tk_data"
-
-xcopy /E /I /Y "%TCL_SRC%" "%DIST_DIR%\_internal\_tcl_data" >nul
-if errorlevel 1 (
-    echo [ERROR] Failed to copy Tcl library from: %TCL_SRC%
-    pause & exit /b 1
-)
-
-xcopy /E /I /Y "%TK_SRC%" "%DIST_DIR%\_internal\_tk_data" >nul
-if errorlevel 1 (
-    echo [ERROR] Failed to copy Tk library from: %TK_SRC%
-    pause & exit /b 1
-)
-
-echo [INFO] Tcl/Tk data replaced successfully.
-
-echo.
-echo [CHECK] Verifying packaged Tcl data...
-if exist "%DIST_DIR%\_internal\_tcl_data\init.tcl" (
-    findstr /C:"package require -exact Tcl" "%DIST_DIR%\_internal\_tcl_data\init.tcl"
-) else (
-    echo [ERROR] Missing packaged init.tcl
     pause & exit /b 1
 )
 
