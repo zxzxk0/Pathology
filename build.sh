@@ -53,18 +53,8 @@ python -m pip show pyvips >/dev/null
 python -c "import pyvips; print('pyvips OK before PyInstaller:', pyvips.__version__)"
 echo
 
-echo "[CHECK] Detecting Tcl/Tk used by build venv..."
-python - <<'PY'
-import tkinter
-root = tkinter.Tcl()
-print('Tcl patchlevel:', root.eval('info patchlevel'))
-print('Tcl library   :', root.eval('info library'))
-try:
-    root.eval('package require Tk')
-    print('Tk library    :', root.eval('set tk_library'))
-except Exception as e:
-    print('Tk check warning:', e)
-PY
+echo "[INFO] Skipping manual Tcl/Tk detection."
+echo "       PyInstaller will handle bundled Tcl/Tk files automatically."
 echo
 
 echo "[5/6] Cleaning previous build..."
