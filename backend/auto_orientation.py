@@ -33,6 +33,7 @@ import io
 
 Image.MAX_IMAGE_PIXELS = None
 
+<<<<<<< HEAD
 COSMX_EXTENSIONS = ('.ome.tif', '.ome.tiff', '.tif', '.tiff', '.png', '.jpg', '.jpeg')
 
 def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
@@ -52,12 +53,15 @@ def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
     return None
 
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 # ============================================================================
 # IMAGE LOADING
 # ============================================================================
 
 def load_he_image(he_path, max_size=1024):
+<<<<<<< HEAD
     """Load a small H&E preview efficiently from SVS or pyramidal TIFF/OME-TIFF."""
     he_path = Path(he_path)
     print(f"  [Load] H&E: {he_path.name}")
@@ -139,6 +143,32 @@ def load_cosmx_image(cosmx_path, max_size=1024):
     except Exception:
         pass
 
+=======
+    print(f"  [Load] H&E: {Path(he_path).name}")
+    he_path = Path(he_path)
+    if he_path.suffix.lower() == '.svs':
+        try:
+            from openslide import OpenSlide
+            slide = OpenSlide(str(he_path))
+            w, h = slide.dimensions
+            scale = min(max_size / w, max_size / h)
+            thumb = slide.get_thumbnail((int(w * scale), int(h * scale)))
+            slide.close()
+            return cv2.cvtColor(np.array(thumb), cv2.COLOR_RGB2BGR), (w, h)
+        except Exception as e:
+            raise ValueError(f"Failed to load SVS: {e}")
+    else:
+        pil_img = Image.open(str(he_path))
+        orig_size = pil_img.size
+        if pil_img.mode != 'RGB':
+            pil_img = pil_img.convert('RGB')
+        pil_img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR), orig_size
+
+
+def load_cosmx_image(cosmx_path, max_size=1024):
+    print(f"  [Load] CosMx: {Path(cosmx_path).name}")
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     pil_img = Image.open(str(cosmx_path))
     orig_size = pil_img.size
     if pil_img.mode == 'RGBA':
@@ -713,9 +743,19 @@ def process_single_slide(slide_id, data_dir, mode, refine, debug, size, svs_path
     if he_path is None:
         print(f"[SKIP] H&E not found for {slide_id}. svs_path={svs_path}"); return None
 
+<<<<<<< HEAD
     cosmx_path = _find_cosmx_file(cosmx_dir, slide_id)
     if cosmx_path is None:
         print(f"[SKIP] CosMx not found for {slide_id}"); return None
+=======
+    cosmx_path = cosmx_dir / f"{slide_id}.png"
+    if not cosmx_path.exists():
+        for f in cosmx_dir.glob("*.png"):
+            if f.stem.lower() == slide_id.lower():
+                cosmx_path = f; break
+        else:
+            print(f"[SKIP] CosMx not found for {slide_id}"); return None
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
     print(f"\n[Processing] {slide_id}")
     he_img,    he_orig    = load_he_image(he_path, size)
@@ -894,7 +934,11 @@ def main():
         cosmx_dir = data_dir / 'cosmx'
         if not cosmx_dir.exists():
             print(f"[ERROR] {cosmx_dir}"); return False
+<<<<<<< HEAD
         files = [p for p in cosmx_dir.iterdir() if p.is_file() and any(p.name.lower().endswith(ext) for ext in COSMX_EXTENSIONS) and not p.name.lower().endswith('_thumb.jpg')]
+=======
+        files = list(cosmx_dir.glob("*.png"))
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         print(f"\n[Batch] {len(files)} files")
         results = []
         for i, f in enumerate(files, 1):

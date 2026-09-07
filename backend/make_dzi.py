@@ -9,12 +9,17 @@ Optimizations:
   - Slow tile detection
 
 Change:
+<<<<<<< HEAD
   - drop_top_levels=1 by default, but now implemented as a VALID reduced-resolution
     DZI pyramid instead of leaving missing top levels.
   - drop_top_levels=1 means a 2x linear downsample (1/4 as many full-resolution
     pixels); drop_top_levels=2 means 4x linear downsample (1/16 as many).
   - A dzi_meta.json sidecar records the original/viewer dimensions and scale so
     the frontend can preserve original-slide coordinates for GeoJSON I/O.
+=======
+  - drop_top_levels=1 by default.
+    This skips the highest-resolution DZI level to reduce tiling time and disk size.
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 """
 
 from pathlib import Path
@@ -115,6 +120,7 @@ def export_deepzoom(
             limit_bounds=False,
         )
 
+<<<<<<< HEAD
         # Build a VALID reduced-resolution DZI instead of advertising the
         # original dimensions while omitting the top tiles. The lower DeepZoom
         # levels generated from the original slide are exactly the pyramid for
@@ -135,15 +141,23 @@ def export_deepzoom(
 
         # DZI descriptor uses the actual maximum view resolution. This keeps
         # OpenSeadragon from requesting non-existent high-resolution levels.
+=======
+        # DZI descriptor
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         (slide_out / f'{slide_id}.dzi').write_text(
             f'<?xml version="1.0" encoding="UTF-8"?>\n'
             f'<Image TileSize="{tile_size}" Overlap="{overlap}" Format="{fmt}"'
             f' xmlns="http://schemas.microsoft.com/deepzoom/2008">\n'
+<<<<<<< HEAD
             f'  <Size Width="{dzi_w}" Height="{dzi_h}"/>\n'
+=======
+            f'  <Size Width="{w}" Height="{h}"/>\n'
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
             f'</Image>',
             encoding='utf-8'
         )
 
+<<<<<<< HEAD
         # Sidecar used by the frontend to map viewer pixels back to original
         # SVS pixels when importing/exporting GeoJSON annotations.
         (slide_out / 'dzi_meta.json').write_text(
@@ -158,6 +172,8 @@ def export_deepzoom(
             encoding='utf-8'
         )
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         files_dir = slide_out / f'{slide_id}_files'
         files_dir.mkdir(parents=True, exist_ok=True)
 
@@ -165,6 +181,7 @@ def export_deepzoom(
         total   = 0
         lv_info = []
 
+<<<<<<< HEAD
         log_cb(
             f'[H&E] --- Level plan ({max_lv_exclusive} exported of '
             f'{dz.level_count} source levels) ---'
@@ -173,6 +190,12 @@ def export_deepzoom(
             f'[H&E] Viewer resolution: {dzi_w}x{dzi_h} '
             f'(original {w}x{h}, downsample={dzi_downsample}x)'
         )
+=======
+        log_cb(f'[H&E] --- Level plan ({dz.level_count} levels) ---')
+
+        drop_top_levels = max(0, int(drop_top_levels or 0))
+        max_lv_exclusive = max(1, dz.level_count - drop_top_levels)
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
         for lv in range(max_lv_exclusive):
             c, r = dz.level_tiles[lv]
@@ -183,9 +206,14 @@ def export_deepzoom(
 
         if drop_top_levels:
             log_cb(
+<<<<<<< HEAD
                 f'[H&E] SAFE_DOWNSAMPLE={dzi_downsample}x '
                 f'→ source levels {max_lv_exclusive}..{dz.level_count - 1} '
                 f'are intentionally excluded from the reduced DZI'
+=======
+                f'[H&E] DROP_TOP_LEVELS={drop_top_levels} '
+                f'→ skipped levels {max_lv_exclusive}..{dz.level_count - 1}'
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
             )
 
         log_cb(f'[H&E] TOTAL: {total:,} tiles  workers={NUM_WORKERS}')
@@ -311,9 +339,12 @@ def export_deepzoom(
                     'thumb_w': tw,
                     'thumb_h': th,
                     'he_thumb_scale': min(tw / w, th / h),
+<<<<<<< HEAD
                     'dzi_w': dzi_w,
                     'dzi_h': dzi_h,
                     'dzi_downsample': dzi_downsample,
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
                 }),
                 encoding='utf-8'
             )
@@ -368,7 +399,11 @@ if __name__ == '__main__':
         '--drop-top-levels',
         type=int,
         default=1,
+<<<<<<< HEAD
         help='Reduce viewer resolution by 2**N while keeping a valid DZI pyramid. 0=full, 1=2x, 2=4x. Default: 1.'
+=======
+        help='Skip this many highest-resolution DZI levels. Default: 1 for faster demo tiling.'
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     )
 
     a = p.parse_args()

@@ -21,6 +21,7 @@ function getSlideDziUrl(slide) {
   return slide.dzi_url || slide.dzi || slide.tileSource || slide.tile_source || null;
 }
 
+<<<<<<< HEAD
 async function loadHeDziMeta(slideId) {
   S.heDziDownsample = 1;
   S.heOriginalW = 0;
@@ -40,6 +41,8 @@ async function loadHeDziMeta(slideId) {
   }
 }
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 function getCosMxDziUrl(info) {
   if (!info) return null;
   return info.dzi_url || info.dzi || info.tileSource || info.tile_source || null;
@@ -67,7 +70,10 @@ const S = {
   anchorCosmxRotation: 0, anchorCosmxFlipX: false, anchorCosmxFlipY: false,
   heImgLoaded: false, cosmxImgLoaded: false,
   importedAnnoIds: [],
+<<<<<<< HEAD
   heDziDownsample: 1, heOriginalW: 0, heOriginalH: 0,
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 };
 const ZOOM = {
   he:    { scale:1, tx:0, ty:0, _drag:false, _sx:0, _sy:0, _moved:false },
@@ -1365,7 +1371,10 @@ async function loadSlide(slide) {
   if (typeof clearLymphocyteOverlay === 'function') clearLymphocyteOverlay(true);
 
   S.current = slide;
+<<<<<<< HEAD
   await loadHeDziMeta(slide.id);
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
   S.rightBase = 'cosmx';
   S.rightHeDzi = getSlideDziUrl(slide);
   S.rightCosMxDzi = null;
@@ -1756,10 +1765,13 @@ function _annotationToGeoJSONFeature(ann) {
   }
 
   if (coords.length < 3) return null;
+<<<<<<< HEAD
 
   const ds = Number(S.heDziDownsample || 1);
   if (ds !== 1) coords = coords.map(p => [p[0] * ds, p[1] * ds]);
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
   const first = coords[0], last = coords[coords.length - 1];
   if (first[0] !== last[0] || first[1] !== last[1]) coords.push([first[0], first[1]]);
 
@@ -2463,10 +2475,14 @@ function _geojsonToAnnotation(feat) {
   const outer = (geo.coordinates || [[]])[0];
   if (!outer || outer.length < 3) return null;
 
+<<<<<<< HEAD
   const ds = Number(S.heDziDownsample || 1);
   const pts = outer.map(p =>
     (p[0] / ds).toFixed(1) + ',' + (p[1] / ds).toFixed(1)
   ).join(' ');
+=======
+  const pts = outer.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
   const svg = '<svg><polygon points="' + pts + '"/></svg>';
 
   const cls = normalizeAnnoClassName(_featureClassName(feat) || 'other');
@@ -2577,8 +2593,12 @@ function onImportFile(input) {
 // ===========================================================================
 
 function _drawLymphPoint(ctx, ti, coords, shown, canvas) {
+<<<<<<< HEAD
   const ds = Number(S.heDziDownsample || 1);
   const vpPt = ti.imageToViewportCoordinates(coords[0] / ds, coords[1] / ds);
+=======
+  const vpPt = ti.imageToViewportCoordinates(coords[0], coords[1]);
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
   const sPt  = S.osdHE.viewport.viewportToViewerElementCoordinates(vpPt);
   if (sPt.x < -8 || sPt.x > canvas.width + 8 || sPt.y < -8 || sPt.y > canvas.height + 8) return;
   ctx.beginPath();
@@ -2597,8 +2617,12 @@ function _drawLymphRing(ctx, ti, ring, shown, canvas) {
   let drawn = false;
   ctx.beginPath();
   ring.forEach((pt, idx) => {
+<<<<<<< HEAD
     const ds = Number(S.heDziDownsample || 1);
     const vpPt = ti.imageToViewportCoordinates(pt[0] / ds, pt[1] / ds);
+=======
+    const vpPt = ti.imageToViewportCoordinates(pt[0], pt[1]);
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     const sPt  = S.osdHE.viewport.viewportToViewerElementCoordinates(vpPt);
     if (idx === 0) ctx.moveTo(sPt.x, sPt.y);
     else ctx.lineTo(sPt.x, sPt.y);

@@ -37,6 +37,7 @@ except Exception as e:
         "Run: .venv-build\\Scripts\\python.exe -m pip install -r requirements.txt"
     ) from e
 
+<<<<<<< HEAD
 # Dice / IoU evaluation uses Shapely. Verify it is installed in the build venv
 # before PyInstaller starts, so a missing dependency fails at build time rather
 # than later inside the packaged app.
@@ -49,6 +50,8 @@ except Exception as e:
         "Run: .venv-build\\Scripts\\python.exe -m pip install -r requirements.txt"
     ) from e
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 # ---------------------------------------------------------------------------
 # datas
@@ -139,6 +142,7 @@ binaries += pyvips_binaries
 
 
 # ---------------------------------------------------------------------------
+<<<<<<< HEAD
 # Shapely / GEOS collection
 # ---------------------------------------------------------------------------
 # Shapely includes compiled extension modules and GEOS runtime libraries.
@@ -162,6 +166,8 @@ binaries += shapely_binaries
 
 
 # ---------------------------------------------------------------------------
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 # hidden imports
 # ---------------------------------------------------------------------------
 hiddenimports = [
@@ -191,11 +197,14 @@ hiddenimports = [
     "scipy.ndimage",
     "scipy.optimize",
 
+<<<<<<< HEAD
     # Required for Dice / IoU polygon evaluation
     "shapely",
     "shapely.geometry",
     "shapely.ops",
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     "tkinter",
     "tkinter.filedialog",
     "tkinter.messagebox",
@@ -213,7 +222,10 @@ hiddenimports = [
 ]
 
 hiddenimports += pyvips_hiddenimports
+<<<<<<< HEAD
 hiddenimports += shapely_hiddenimports
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 # Remove duplicates while preserving order
 hiddenimports = list(dict.fromkeys(hiddenimports))

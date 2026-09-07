@@ -1,14 +1,26 @@
 """
+<<<<<<< HEAD
 make_cosmx_dzi.py -- CosMx registered image -> sparse DZI tiles
 
 Purpose
 -------
 This version is for very large CosMx image files, including OME-TIFF.
+=======
+make_cosmx_dzi.py -- CosMx registered PNG -> sparse DZI tiles
+
+Purpose
+-------
+This version is for very large CosMx PNG files.
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 Main changes
 ------------
 1. pyvips is REQUIRED. If pyvips is not installed, the script stops.
+<<<<<<< HEAD
 2. PIL fallback is DISABLED to avoid freezing the computer on huge CosMx images.
+=======
+2. PIL fallback is DISABLED to avoid freezing the computer on huge CosMx PNGs.
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 3. Empty tiles outside the transformed CosMx bounding box are SKIPPED.
 4. The script does NOT create a full H&E-sized canvas in memory.
    It extracts/resizes only the CosMx region needed for each tile.
@@ -19,7 +31,11 @@ Main changes
 Expected paths
 --------------
 data/
+<<<<<<< HEAD
   cosmx/<slide_id>.(ome.tif|ome.tiff|tif|tiff|png|jpg|jpeg)
+=======
+  cosmx/<slide_id>.png
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
   cosmx_tiles/<slide_id>/transform_registered.json or transform.json
 
 Output
@@ -34,6 +50,7 @@ import json
 import math
 import sys
 
+<<<<<<< HEAD
 COSMX_EXTENSIONS = ('.ome.tif', '.ome.tiff', '.tif', '.tiff', '.png', '.jpg', '.jpeg')
 
 def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
@@ -52,6 +69,8 @@ def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
                     return p
     return None
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 # ============================================================================
 # DZI HELPERS
@@ -491,10 +510,26 @@ def process_single_slide(
         log_cb=log_cb,
     )
 
+<<<<<<< HEAD
     cosmx_path = _find_cosmx_file(cosmx_dir, slide_id)
     if cosmx_path is None:
         log_cb(f'  [SKIP] CosMx image not found for {slide_id}')
         return False
+=======
+    cosmx_path = cosmx_dir / f'{slide_id}.png'
+
+    if not cosmx_path.exists():
+        matches = [
+            p for p in cosmx_dir.glob('*.png')
+            if p.stem.lower() == slide_id.lower()
+        ]
+
+        if matches:
+            cosmx_path = matches[0]
+        else:
+            log_cb(f'  [SKIP] CosMx PNG not found: {cosmx_path}')
+            return False
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
     tiles_dir.mkdir(parents=True, exist_ok=True)
 

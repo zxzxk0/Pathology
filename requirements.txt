@@ -25,7 +25,10 @@ pyvips-binary>=8.16.0
 
 # ── Scientific ─────────────────────────────────────────────────────────────────
 scipy>=1.11.0
+<<<<<<< HEAD
 shapely>=2.0.0
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 # ── System Monitoring (optional, for RAM logging) ─────────────────────────────
 psutil>=5.9.0

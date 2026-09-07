@@ -48,6 +48,7 @@ if sys.platform == 'win32':
         pass
 
 Image.MAX_IMAGE_PIXELS = None
+<<<<<<< HEAD
 
 COSMX_EXTENSIONS = ('.ome.tif', '.ome.tiff', '.tif', '.tiff', '.png', '.jpg', '.jpeg')
 
@@ -67,6 +68,8 @@ def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
                     return p
     return None
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 PROC_SIZE = 1024   # make_cosmx_dzi.py
 
 
@@ -75,6 +78,7 @@ PROC_SIZE = 1024   # make_cosmx_dzi.py
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _load_gray(path: Path, max_size: int = PROC_SIZE):
+<<<<<<< HEAD
     """Load a grayscale thumbnail without decoding full-resolution OME-TIFF when possible."""
     path = Path(path)
     try:
@@ -107,6 +111,12 @@ def _load_gray(path: Path, max_size: int = PROC_SIZE):
     except Exception:
         pass
 
+=======
+    """
+            max_size    .
+    Returns: (gray_ndarray, orig_size_wh, thumb_size_wh)
+    """
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     img = Image.open(str(path))
     if img.mode == 'RGBA':
         bg = Image.new('RGB', img.size, (255, 255, 255))
@@ -114,10 +124,24 @@ def _load_gray(path: Path, max_size: int = PROC_SIZE):
         img = bg
     elif img.mode != 'RGB':
         img = img.convert('RGB')
+<<<<<<< HEAD
     orig = img.size
     img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
     thumb = img.size
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY), orig, thumb
+=======
+    orig = img.size                                        # (w, h)
+    img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    thumb = img.size                                       # (w, h)
+    gray  = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+    return gray, orig, thumb
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 def _compute_rigid(src_pts, dst_pts):
     """
     SVD   Rigid Body  (rotation + translation, no scale change).
@@ -360,9 +384,15 @@ def run(slide_id:       str,
     log(f'[Size] H&E  orig={he_orig_w}x{he_orig_h}  thumb={he_thumb_w}x{he_thumb_h}')
 
     # CosMx: PIL
+<<<<<<< HEAD
     cosmx_path = _find_cosmx_file(cosmx_dir, slide_id)
     if cosmx_path is None:
         raise FileNotFoundError(f'CosMx image not found for {slide_id}')
+=======
+    cosmx_path = cosmx_dir / f'{slide_id}.png'
+    if not cosmx_path.exists():
+        raise FileNotFoundError(f'CosMx PNG not found: {cosmx_path}')
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
     with Image.open(str(cosmx_path)) as cx_pil:
         cosmx_orig_w, cosmx_orig_h = cx_pil.size

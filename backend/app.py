@@ -445,6 +445,7 @@ def _find_slide_file(slide_id: str) -> Optional[Path]:
     return None
 
 
+<<<<<<< HEAD
 
 COSMX_EXTENSIONS = (".ome.tif", ".ome.tiff", ".tif", ".tiff", ".png", ".jpg", ".jpeg")
 
@@ -491,6 +492,8 @@ def _copy_cosmx_for_slide(src: str | Path, slide_id: str) -> Path:
     _log(f"[Input] CosMx preserved as {dst.name}")
     return dst
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 def _get_image_size(path: Path) -> tuple[int, int]:
     try:
         from PIL import Image
@@ -549,12 +552,17 @@ def _make_he_thumbnail(slide_id: str, svs_path: str | Path | None = None, max_si
         return False
 
 
+<<<<<<< HEAD
 def _make_cosmx_thumbnail(cosmx_path: Path, cosmx_thumb: Path, max_size: int = 1024, force: bool = False) -> tuple[int, int]:
     """Create a small CosMx preview without requiring the source to be PNG.
 
     For large TIFF/OME-TIFF files, try OpenSlide/pyvips first so an existing
     pyramid/overview can be used instead of decoding the full level-0 image.
     """
+=======
+def _make_cosmx_thumbnail(cosmx_png: Path, cosmx_thumb: Path, max_size: int = 1024, force: bool = False) -> tuple[int, int]:
+    """Create 1024px CosMx thumbnail for web/manual anchor screen."""
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     if force and cosmx_thumb.exists():
         try:
             cosmx_thumb.unlink()
@@ -562,6 +570,7 @@ def _make_cosmx_thumbnail(cosmx_path: Path, cosmx_thumb: Path, max_size: int = 1
             pass
 
     if cosmx_thumb.exists():
+<<<<<<< HEAD
         return _get_image_size(cosmx_path)
 
     # 1) OpenSlide is efficient for pyramidal whole-slide TIFFs when supported.
@@ -614,11 +623,47 @@ def _make_cosmx_thumbnail(cosmx_path: Path, cosmx_thumb: Path, max_size: int = 1
         img.save(str(cosmx_thumb), "JPEG", quality=85)
         img.close()
         _log(f"[Thumb] CosMx thumbnail ready by PIL: {orig_w}x{orig_h}")
+=======
+        return _get_image_size(cosmx_png)
+
+    try:
+        from PIL import Image
+        Image.MAX_IMAGE_PIXELS = None
+        img = Image.open(str(cosmx_png))
+        img.load()
+        orig_w, orig_h = img.size
+        img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        img.convert("RGB").save(str(cosmx_thumb), "JPEG", quality=85)
+        img.close()
+        _log(f"[Thumb] CosMx thumbnail ready: {orig_w}x{orig_h}")
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         return orig_w, orig_h
     except Exception as pil_err:
         _log(f"[WARN] PIL CosMx thumbnail failed: {pil_err}")
 
+<<<<<<< HEAD
     return _get_image_size(cosmx_path)
+=======
+    try:
+        import cv2
+        img_cv = cv2.imread(str(cosmx_png), cv2.IMREAD_UNCHANGED)
+        if img_cv is None:
+            raise RuntimeError("cv2.imread returned None")
+        orig_h, orig_w = img_cv.shape[:2]
+        scale = min(max_size / orig_w, max_size / orig_h)
+        new_w = max(1, int(orig_w * scale))
+        new_h = max(1, int(orig_h * scale))
+        thumb = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        if thumb.ndim == 3 and thumb.shape[2] == 4:
+            thumb = cv2.cvtColor(thumb, cv2.COLOR_BGRA2BGR)
+        cv2.imwrite(str(cosmx_thumb), thumb, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        _log(f"[Thumb] CosMx thumbnail ready by OpenCV: {orig_w}x{orig_h}")
+        return orig_w, orig_h
+    except Exception as cv_err:
+        _log(f"[WARN] OpenCV CosMx thumbnail failed: {cv_err}")
+
+    return _get_image_size(cosmx_png)
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 
 
@@ -628,10 +673,21 @@ def _make_original_cosmx_dzi(slide_id: str) -> bool:
     The viewer uses this original DZI and applies transform_registered.json in
     OpenSeadragon. This avoids sparse registered DZI tile gaps and 404 errors.
     """
+<<<<<<< HEAD
     cosmx_png = _find_cosmx_file(slide_id)
     if cosmx_png is None:
         _log(f"[CosMx Original DZI] CosMx image not found for: {slide_id}")
         return False
+=======
+    cosmx_png = COSMX_DIR / f"{slide_id}.png"
+    if not cosmx_png.exists():
+        matches = [p for p in COSMX_DIR.glob("*.png") if p.stem.lower() == slide_id.lower()]
+        if matches:
+            cosmx_png = matches[0]
+        else:
+            _log(f"[CosMx Original DZI] PNG not found: {cosmx_png}")
+            return False
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
     out_dir = COSMX_TILES_DIR / slide_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -722,8 +778,13 @@ def _get_registration_preview(slide_id: str) -> Dict[str, Any]:
         "preview_mode": "qc_falsecolor",
     }
 
+<<<<<<< HEAD
     cosmx_png = _find_cosmx_file(slide_id)
     if cosmx_png is None:
+=======
+    cosmx_png = COSMX_DIR / f"{slide_id}.png"
+    if not cosmx_png.exists():
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         payload["has_cosmx"] = False
         payload["transform"] = _normalize_preview_transform({}, he_thumb_w, he_thumb_h)
         return payload
@@ -731,7 +792,11 @@ def _get_registration_preview(slide_id: str) -> Dict[str, Any]:
     cosmx_thumb = COSMX_DIR / f"{slide_id}_thumb.jpg"
     orig_w, orig_h = _make_cosmx_thumbnail(cosmx_png, cosmx_thumb, force=False)
     cosmx_thumb_w, cosmx_thumb_h = _get_image_size(cosmx_thumb if cosmx_thumb.exists() else cosmx_png)
+<<<<<<< HEAD
     cosmx_url = f"/cosmx/{slide_id}_thumb.jpg" if cosmx_thumb.exists() else f"/cosmx/{cosmx_png.name}"
+=======
+    cosmx_url = f"/cosmx/{slide_id}_thumb.jpg" if cosmx_thumb.exists() else f"/cosmx/{slide_id}.png"
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
     payload.update({
         "has_cosmx": True,
@@ -864,7 +929,11 @@ def get_cosmx_dzi(slide_id):
     # <slide_id>_registered.dzi, create the original CosMx DZI on demand.
     # This may take a little time on first refresh, but prevents missing sparse
     # registered tiles from breaking the viewer.
+<<<<<<< HEAD
     if not original_dzi.exists() and _find_cosmx_file(slide_id) is not None:
+=======
+    if not original_dzi.exists() and (COSMX_DIR / f"{slide_id}.png").exists():
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         try:
             _make_original_cosmx_dzi(slide_id)
         except Exception as e:
@@ -978,8 +1047,12 @@ def open_cosmx_dialog():
         path = filedialog.askopenfilename(
             title="Select CosMx image",
             filetypes=[
+<<<<<<< HEAD
                 ("CosMx Images", "*.ome.tif *.ome.tiff *.tif *.tiff *.png *.jpg *.jpeg"),
                 ("OME-TIFF", "*.ome.tif *.ome.tiff"),
+=======
+                ("PNG Images", "*.png"),
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
                 ("Image Files", "*.png *.jpg *.jpeg *.tif *.tiff"),
                 ("All Files", "*.*"),
             ],
@@ -1092,6 +1165,7 @@ def _run_fine_registration(slide_id: str, svs_path: str | Path, transform_file: 
     ])
     _log("[Fine] Fine registration complete")
 
+<<<<<<< HEAD
 
 def _write_native_coordinate_transform(slide_id: str, he_w: int, he_h: int,
                                        cosmx_w: int, cosmx_h: int,
@@ -1152,6 +1226,8 @@ def _write_native_coordinate_transform(slide_id: str, he_w: int, he_h: int,
     )
     return out
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 # =============================================================================
 # PREVIEW-FIRST PIPELINE ENDPOINTS
 # =============================================================================
@@ -1163,7 +1239,10 @@ def pipeline_run_preview():
     - copy inputs into data/
     - create H&E and CosMx thumbnails
     - run auto_orientation + register_fine when CosMx exists and mode='auto'
+<<<<<<< HEAD
     - for mode='tiling-only', preserve native coordinates and skip registration
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     - return preview payload for the canvas overlay screen
     """
     global _preview_context
@@ -1194,7 +1273,11 @@ def pipeline_run_preview():
             # The downstream code expects data/cosmx/<slide_id>.png.
             # CosMx images are usually much smaller than SVS, so copying/normalizing
             # only this file keeps make_cosmx_dzi.py and register_anchors.py compatible.
+<<<<<<< HEAD
             _copy_cosmx_for_slide(cosmx_path, slide_id)
+=======
+            _safe_copy(cosmx_path, COSMX_DIR / f"{slide_id}.png")
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
             # Avoid stale previews from an earlier failed/experimental run.
             # The current run must create transform.json via auto_orientation.py
@@ -1208,6 +1291,7 @@ def pipeline_run_preview():
                 except Exception as e:
                     _log(f"[WARN] Could not remove stale transform {stale}: {e}")
 
+<<<<<<< HEAD
         if has_cosmx and mode == "auto":
             phase1_steps = ["Preview thumbnails", "Auto orientation", "Fine registration"]
         elif has_cosmx and mode == "tiling-only":
@@ -1215,10 +1299,14 @@ def pipeline_run_preview():
         else:
             phase1_steps = ["Preview thumbnails"]
         _reset_status(slide_id, phase1_steps)
+=======
+        _reset_status(slide_id, ["Preview thumbnails", "Auto orientation", "Fine registration"] if (has_cosmx and mode == "auto") else ["Preview thumbnails"])
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         _set_step(1, "Preview thumbnails")
 
         if not _make_he_thumbnail(slide_id, svs_path=svs_src):
             raise RuntimeError("H&E thumbnail generation failed")
+<<<<<<< HEAD
         cosmx_orig_w = cosmx_orig_h = 0
         if has_cosmx:
             cosmx_orig_w, cosmx_orig_h = _make_cosmx_thumbnail(
@@ -1243,6 +1331,10 @@ def pipeline_run_preview():
             _write_native_coordinate_transform(
                 slide_id, he_orig_w, he_orig_h, cosmx_orig_w, cosmx_orig_h, processing_size=1024
             )
+=======
+        if has_cosmx:
+            _make_cosmx_thumbnail(COSMX_DIR / f"{slide_id}.png", COSMX_DIR / f"{slide_id}_thumb.jpg", force=True)
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
         # Automatic registration is the primary path. Do NOT return preview until
         # auto_orientation.py and register_fine.py have both completed and the
@@ -1275,10 +1367,13 @@ def pipeline_run_preview():
             _log(f"[OK] Fine registration output found: {final_json}")
 
         preview = _get_registration_preview(slide_id)
+<<<<<<< HEAD
         if has_cosmx and mode == "tiling-only":
             preview["registration_skipped"] = True
             preview["registration_mode"] = "tiling-only"
             preview["registration_warning"] = "Registration skipped. Preview preserves the input files' native pixel coordinates."
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
         if has_cosmx and mode == "auto" and not preview.get("is_fine_registered_preview"):
             raise RuntimeError(
                 "Preview refused to use fallback transform. "
@@ -1504,7 +1599,11 @@ def start_pipeline():
         # use the selected local source path directly.
         svs_src = Path(svs_path)
         if has_cosmx:
+<<<<<<< HEAD
             _copy_cosmx_for_slide(cosmx_path, slide_id)
+=======
+            _safe_copy(cosmx_path, COSMX_DIR / f"{slide_id}.png")
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
     except Exception as e:
         with _pipeline_lock:
             _pipeline_running = False
@@ -1522,8 +1621,13 @@ def _run_pipeline_thread(slide_id: str, svs_path: str, has_cosmx: bool, transfor
         make_dzi.run(svs_path=svs_path, out_dir=str(TILES_DIR), log_cb=_log)
         if has_cosmx:
             _make_he_thumbnail(slide_id, svs_path=svs_path)
+<<<<<<< HEAD
             cosmx_png = _find_cosmx_file(slide_id)
             if cosmx_png is not None:
+=======
+            cosmx_png = COSMX_DIR / f"{slide_id}.png"
+            if cosmx_png.exists():
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
                 w, h = _make_cosmx_thumbnail(cosmx_png, COSMX_DIR / f"{slide_id}_thumb.jpg", force=True)
                 _log(f"[Thumb] CosMx thumbnail ready ({w}x{h})")
     except Exception as e:
@@ -1662,6 +1766,7 @@ def delete_annotations(slide_id):
     return jsonify({"status": "not_found"}), 404
 
 
+<<<<<<< HEAD
 # =============================================================================
 # SEGMENTATION EVALUATION (Pathologist GT vs AI segmentation)
 # =============================================================================
@@ -1850,6 +1955,8 @@ def evaluate_segmentation():
         return _json_error(f"Segmentation evaluation failed: {e}", 500)
 
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 @app.route("/api/qc/<slide_id>", methods=["GET"])
 def get_qc_status(slide_id):
     qc_file = QC_DIR / f"{slide_id}.json"

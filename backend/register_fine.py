@@ -30,6 +30,7 @@ import io
 
 Image.MAX_IMAGE_PIXELS = None
 
+<<<<<<< HEAD
 COSMX_EXTENSIONS = ('.ome.tif', '.ome.tiff', '.tif', '.tiff', '.png', '.jpg', '.jpeg')
 
 def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
@@ -49,12 +50,15 @@ def _find_cosmx_file(cosmx_dir: Path, slide_id: str):
     return None
 
 
+=======
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 # ============================================================================
 # IMAGE LOADING
 # ============================================================================
 
 def load_he_image(he_path, max_size=1024):
+<<<<<<< HEAD
     """Load a small H&E preview efficiently from SVS or pyramidal TIFF/OME-TIFF."""
     he_path = Path(he_path)
     print(f"  [Load] H&E: {he_path.name}")
@@ -145,6 +149,33 @@ def load_cosmx_image(cosmx_path, max_size=1024):
         pil_img = pil_img.convert('RGB')
     pil_img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
     return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR), orig_size
+=======
+    he_path = Path(he_path)
+    if he_path.suffix.lower() == '.svs':
+        from openslide import OpenSlide
+        slide = OpenSlide(str(he_path))
+        w, h  = slide.dimensions
+        sc    = min(max_size / w, max_size / h)
+        thumb = slide.get_thumbnail((int(w*sc), int(h*sc)))
+        slide.close()
+        return cv2.cvtColor(np.array(thumb), cv2.COLOR_RGB2BGR), (w, h)
+    pil = Image.open(str(he_path))
+    orig = pil.size
+    if pil.mode != 'RGB': pil = pil.convert('RGB')
+    pil.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR), orig
+
+
+def load_cosmx_image(cosmx_path, max_size=1024):
+    pil = Image.open(str(cosmx_path))
+    orig = pil.size
+    if pil.mode == 'RGBA':
+        bg = Image.new('RGB', pil.size, (255,255,255))
+        bg.paste(pil, mask=pil.split()[3]); pil = bg
+    elif pil.mode != 'RGB': pil = pil.convert('RGB')
+    pil.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR), orig
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
 
 # ============================================================================
@@ -606,9 +637,19 @@ def process_single_slide(slide_id, data_dir, size, init_version='8', svs_path=No
     print(f"  H&E source: {he_path}")
 
     # CosMx
+<<<<<<< HEAD
     cosmx_path = _find_cosmx_file(cosmx_dir, slide_id)
     if cosmx_path is None:
         print(f"[SKIP] CosMx not found"); return None
+=======
+    cosmx_path = cosmx_dir / f"{slide_id}.png"
+    if not cosmx_path.exists():
+        for f in cosmx_dir.glob("*.png"):
+            if f.stem.lower() == slide_id.lower():
+                cosmx_path = f; break
+        else:
+            print(f"[SKIP] CosMx not found"); return None
+>>>>>>> 801d3939ca1ebe32cf707a84486e8bfb34985a47
 
     #
     he_img,    _ = load_he_image(he_path, size)
